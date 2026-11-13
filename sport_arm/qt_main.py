@@ -9,14 +9,14 @@ import sqlite3
 import sys
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QBrush, QFont, QPainter
+from PyQt6.QtGui import QColor, QBrush, QFont, QPainter, QPen, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QApplication, QAbstractItemView, QCheckBox, QComboBox, QDialog,
     QDialogButtonBox, QFormLayout, QFrame, QGraphicsScene, QGraphicsView,
     QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
     QMainWindow, QMessageBox, QPushButton, QRadioButton, QScrollArea,
     QSizePolicy, QSplitter, QStackedWidget, QTabWidget, QTableWidget,
-    QTableWidgetItem, QVBoxLayout, QWidget, QFileDialog, QPen
+    QTableWidgetItem, QVBoxLayout, QWidget, QFileDialog
 )
 
 import database as dbm
