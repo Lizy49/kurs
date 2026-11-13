@@ -1453,6 +1453,8 @@ class MainWindow(QMainWindow):
         self.user = None
         self.tabs = []
         self.setStyleSheet(APP_STYLE)
+        self.refresh_shortcut = QShortcut(QKeySequence("F5"), self)
+        self.refresh_shortcut.activated.connect(self.refresh_all)
         self.show_login()
 
     def notify(self, message):
