@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
     QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
     QMainWindow, QMessageBox, QPushButton, QRadioButton, QScrollArea,
     QSizePolicy, QSplitter, QStackedWidget, QTabWidget, QTableWidget,
-    QTableWidgetItem, QVBoxLayout, QWidget, QFileDialog
+    QTableWidgetItem, QVBoxLayout, QWidget, QFileDialog, QPen
 )
 
 import database as dbm
@@ -996,7 +996,7 @@ class BracketTab(BaseTab):
                         x1 = x - gap_x
                         self.scene.addLine(
                             x1, py, x1 + gap_x / 2, py,
-                            QBrush(QColor("#94a3b8")).color()
+                            QPen(QColor("#94a3b8"))
                         )
                         self.scene.addLine(
                             x1 + gap_x / 2, py, x1 + gap_x / 2, center_y,
@@ -1012,9 +1012,9 @@ class BracketTab(BaseTab):
     def draw_match_box(self, x, y, width, height, match, mine):
         own = mine is not None and mine in (match["team1_id"], match["team2_id"])
         border = QColor("#f59e0b") if own else QColor("#94a3b8")
-        self.scene.addRect(x, y, width, height, QBrush(Qt.GlobalColor.white), border)
+        self.scene.addRect(x, y, width, height, QPen(border), QBrush(QColor("#ffffff")))
         self.scene.addLine(x, y + height / 2, x + width, y + height / 2,
-                           QBrush(QColor("#e2e8f0")).color())
+                           QPen(QColor("#e2e8f0"))
         for index, (name, score, team_id) in enumerate((
             (match["team1_name"], match["score1"], match["team1_id"]),
             (match["team2_name"], match["score2"], match["team2_id"])
