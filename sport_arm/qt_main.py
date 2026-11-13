@@ -36,37 +36,92 @@ SYSTEM_BY_LABEL = {value: key for key, value in SYSTEM_NAMES.items()}
 
 APP_STYLE = """
 QWidget {
-    background: #f3f6fb;
-    color: #172033;
+    background: #f4f6fb;
+    color: #182338;
     font-family: "Segoe UI", "Arial";
     font-size: 10pt;
 }
-QMainWindow { background: #f3f6fb; }
-QFrame#Header {
-    background: #14213d;
+QMainWindow { background: #f4f6fb; }
+QFrame#Sidebar {
+    background: #111b2e;
     border: none;
 }
-QLabel#Brand {
-    color: white;
+QLabel#SidebarBrand {
+    color: #ffffff;
     font-size: 17pt;
+    font-weight: 800;
+}
+QLabel#SidebarSub {
+    color: #8fa1bb;
+    font-size: 9pt;
+}
+QLabel#SidebarSection {
+    color: #71829d;
+    font-size: 8pt;
+    font-weight: 800;
+    padding: 14px 10px 5px 10px;
+}
+QPushButton#NavButton {
+    background: transparent;
+    color: #c4cede;
+    text-align: left;
+    border: none;
+    border-radius: 8px;
+    padding: 11px 13px;
+    font-weight: 600;
+}
+QPushButton#NavButton:hover {
+    background: #1c2a42;
+    color: #ffffff;
+}
+QPushButton#NavActive {
+    background: #253b5d;
+    color: #ffffff;
+    text-align: left;
+    border: none;
+    border-left: 3px solid #60a5fa;
+    border-radius: 8px;
+    padding: 11px 13px;
     font-weight: 700;
 }
-QLabel#SubBrand { color: #cbd5e1; }
+QFrame#ProfileCard {
+    background: #1a2941;
+    border: 1px solid #2a3b57;
+    border-radius: 10px;
+}
+QLabel#ProfileName { color: white; font-weight: 700; }
+QLabel#ProfileRole { color: #9fb0c8; font-size: 8pt; }
+QFrame#Workspace { background: #f4f6fb; border: none; }
+QFrame#Topbar {
+    background: #ffffff;
+    border: none;
+    border-bottom: 1px solid #e6ebf2;
+}
 QLabel#PageTitle {
-    color: #172033;
-    font-size: 17pt;
-    font-weight: 700;
+    color: #17243a;
+    font-size: 19pt;
+    font-weight: 750;
 }
-QLabel#Muted { color: #64748b; }
-QFrame#Surface, QGroupBox {
-    background: white;
-    border: 1px solid #e4eaf2;
-    border-radius: 12px;
+QLabel#PageSubtitle { color: #728097; font-size: 9pt; }
+QLabel#Muted { color: #718097; }
+QFrame#Surface, QFrame#MetricCard, QGroupBox {
+    background: #ffffff;
+    border: 1px solid #e5eaf2;
+    border-radius: 13px;
 }
+QFrame#MetricCard { min-height: 108px; }
+QLabel#MetricValue {
+    color: #15233a;
+    font-size: 23pt;
+    font-weight: 800;
+}
+QLabel#MetricTitle { color: #64748b; font-size: 9pt; font-weight: 600; }
+QLabel#MetricHint { color: #94a3b8; font-size: 8pt; }
 QGroupBox {
     margin-top: 12px;
     padding: 14px 10px 10px 10px;
-    font-weight: 600;
+    font-weight: 700;
+    color: #334155;
 }
 QGroupBox::title {
     subcontrol-origin: margin;
@@ -75,35 +130,37 @@ QGroupBox::title {
     color: #475569;
 }
 QPushButton {
-    background: #e8edf5;
-    color: #172033;
-    border: 0;
+    background: #e9eef6;
+    color: #26364f;
+    border: 1px solid #e0e7f0;
     border-radius: 8px;
     padding: 9px 14px;
     font-weight: 600;
 }
-QPushButton:hover { background: #dbe4f0; }
-QPushButton:pressed { background: #cbd8e8; }
+QPushButton:hover { background: #dfe7f2; }
+QPushButton:pressed { background: #d2deed; }
 QPushButton#Primary {
     background: #2563eb;
-    color: white;
+    color: #ffffff;
+    border: 1px solid #2563eb;
 }
 QPushButton#Primary:hover { background: #1d4ed8; }
 QPushButton#Danger {
-    background: #fee2e2;
-    color: #991b1b;
+    background: #fff1f2;
+    color: #be123c;
+    border: 1px solid #ffe4e6;
 }
-QPushButton#Danger:hover { background: #fecaca; }
+QPushButton#Danger:hover { background: #ffe4e6; }
 QLineEdit, QComboBox {
-    background: white;
-    border: 1px solid #d7dfeb;
-    border-radius: 7px;
-    padding: 8px 9px;
+    background: #ffffff;
+    border: 1px solid #dbe3ee;
+    border-radius: 8px;
+    padding: 9px 10px;
     selection-background-color: #2563eb;
 }
-QLineEdit:focus, QComboBox:focus { border: 1px solid #2563eb; }
+QLineEdit:focus, QComboBox:focus { border: 1px solid #60a5fa; }
 QTabWidget::pane {
-    background: white;
+    background: #ffffff;
     border: 1px solid #e1e8f1;
     border-radius: 10px;
     top: -1px;
@@ -117,38 +174,35 @@ QTabBar::tab {
     border-top-right-radius: 7px;
     font-weight: 600;
 }
-QTabBar::tab:selected {
-    background: white;
-    color: #1d4ed8;
-}
+QTabBar::tab:selected { background: #ffffff; color: #1d4ed8; }
 QTableWidget {
-    background: white;
-    alternate-background-color: #f6f8fc;
-    border: 1px solid #e5eaf2;
-    border-radius: 8px;
-    gridline-color: #edf1f6;
-    selection-background-color: #dbeafe;
+    background: #ffffff;
+    alternate-background-color: #f8fafd;
+    border: 1px solid #e6ebf2;
+    border-radius: 9px;
+    gridline-color: transparent;
+    selection-background-color: #e5efff;
     selection-color: #172033;
 }
 QHeaderView::section {
-    background: #edf2f8;
-    color: #334155;
-    padding: 9px 7px;
+    background: #f0f4f9;
+    color: #53627a;
+    padding: 11px 8px;
     border: none;
-    border-bottom: 1px solid #dce4ef;
+    border-bottom: 1px solid #e2e8f0;
     font-weight: 700;
 }
-QTableWidget::item { padding: 5px; }
+QTableWidget::item { padding: 7px; border: none; }
 QCheckBox, QRadioButton { spacing: 7px; }
-QStatusBar {
-    background: #e9eef6;
-    color: #526078;
-    border-top: 1px solid #dce4ef;
-}
 QGraphicsView {
-    background: white;
+    background: #ffffff;
     border: 1px solid #e5eaf2;
-    border-radius: 8px;
+    border-radius: 10px;
+}
+QStatusBar {
+    background: #ffffff;
+    color: #68778e;
+    border-top: 1px solid #e6ebf2;
 }
 """
 
@@ -1443,15 +1497,162 @@ class MyStatsTab(BaseTab):
         ])
 
 
+
+class DashboardTab(BaseTab):
+    """Главная страница с обзором системы и быстрыми переходами."""
+
+    def __init__(self, app):
+        super().__init__(app)
+        intro = QHBoxLayout()
+        welcome = QVBoxLayout()
+        self.welcome_title = QLabel("Обзор спортивных соревнований")
+        self.welcome_title.setObjectName("PageTitle")
+        self.welcome_subtitle = QLabel("Ключевые показатели и быстрый доступ к рабочим разделам.")
+        self.welcome_subtitle.setObjectName("Muted")
+        welcome.addWidget(self.welcome_title)
+        welcome.addWidget(self.welcome_subtitle)
+        intro.addLayout(welcome)
+        intro.addStretch(1)
+        self.layout.addLayout(intro)
+
+        metrics = QGridLayout()
+        metrics.setHorizontalSpacing(12)
+        metrics.setVerticalSpacing(12)
+        self.metric_values = {}
+        definitions = [
+            ("tournaments", "Турниров", "Всего соревнований"),
+            ("teams", "Команд", "Зарегистрировано в системе"),
+            ("pending", "Заявок ожидают", "Требуют решения организатора"),
+            ("matches", "Сыграно матчей", "Результаты уже внесены")
+        ]
+        for index, (key, title, hint) in enumerate(definitions):
+            card = QFrame()
+            card.setObjectName("MetricCard")
+            layout = QVBoxLayout(card)
+            layout.setContentsMargins(17, 14, 17, 14)
+            layout.setSpacing(3)
+            value = QLabel("—")
+            value.setObjectName("MetricValue")
+            caption = QLabel(title)
+            caption.setObjectName("MetricTitle")
+            note = QLabel(hint)
+            note.setObjectName("MetricHint")
+            layout.addWidget(value)
+            layout.addWidget(caption)
+            layout.addWidget(note)
+            metrics.addWidget(card, 0, index)
+            self.metric_values[key] = value
+        self.layout.addLayout(metrics)
+
+        lower = QHBoxLayout()
+        lower.setSpacing(14)
+
+        recent_panel = QFrame()
+        recent_panel.setObjectName("Surface")
+        recent_layout = QVBoxLayout(recent_panel)
+        recent_layout.setContentsMargins(16, 14, 16, 14)
+        recent_heading = QLabel("Последние турниры")
+        recent_heading.setStyleSheet("font-size: 12pt; font-weight: 700;")
+        recent_layout.addWidget(recent_heading)
+        self.recent_table = DataTable(
+            ["Турнир", "Система", "Статус", "Команд"],
+            widths=[230, 190, 130, 75]
+        )
+        self.recent_table.setMinimumHeight(275)
+        recent_layout.addWidget(self.recent_table)
+
+        quick_panel = QFrame()
+        quick_panel.setObjectName("Surface")
+        quick_layout = QVBoxLayout(quick_panel)
+        quick_layout.setContentsMargins(16, 14, 16, 14)
+        quick_heading = QLabel("Быстрые действия")
+        quick_heading.setStyleSheet("font-size: 12pt; font-weight: 700;")
+        quick_layout.addWidget(quick_heading)
+        quick_hint = QLabel("Переход к часто используемым разделам.")
+        quick_hint.setObjectName("Muted")
+        quick_layout.addWidget(quick_hint)
+        self.quick_buttons = []
+        self.quick_target = [
+            ("Создать / открыть турниры", "Турниры"),
+            ("Рассмотреть заявки", "Заявки"),
+            ("Открыть расписание матчей", "Матчи и расписание"),
+            ("Посмотреть турнирную таблицу", "Таблица")
+        ]
+        for text, target in self.quick_target:
+            button = QPushButton("›   " + text)
+            button.setObjectName("NavButton")
+            button.setStyleSheet(
+                "QPushButton { text-align: left; background: #f5f8fc; "
+                "border: 1px solid #e8edf4; padding: 13px; color: #26364f; } "
+                "QPushButton:hover { background: #eaf2ff; color: #1d4ed8; }"
+            )
+            button.clicked.connect(lambda checked=False, name=target: self.app.goto(name))
+            quick_layout.addWidget(button)
+            self.quick_buttons.append(button)
+        quick_layout.addStretch(1)
+        footnote = QLabel("Подсказка: нажмите F5 или «Обновить», чтобы перечитать данные.")
+        footnote.setWordWrap(True)
+        footnote.setObjectName("Muted")
+        quick_layout.addWidget(footnote)
+
+        lower.addWidget(recent_panel, 3)
+        lower.addWidget(quick_panel, 2)
+        self.layout.addLayout(lower, 1)
+
+    def refresh(self):
+        tournaments = self.db.list_tournaments()
+        teams = self.db.list_teams()
+        applications = self.db.list_applications()
+        pending = sum(1 for item in applications if item["status"] == "pending")
+        played = 0
+        for tournament in tournaments:
+            played += sum(
+                1 for match in self.db.list_matches(tournament["id"])
+                if match["status"] == "played"
+            )
+
+        self.metric_values["tournaments"].setText(str(len(tournaments)))
+        self.metric_values["teams"].setText(str(len(teams)))
+        self.metric_values["pending"].setText(str(pending))
+        self.metric_values["matches"].setText(str(played))
+
+        rows = []
+        for tournament in tournaments[:8]:
+            rows.append((tournament["id"], (
+                tournament["name"], SYSTEM_NAMES[tournament["system"]],
+                TOURNAMENT_STATUS[tournament["status"]], tournament["teams_count"]
+            ), []))
+        self.recent_table.fill(rows)
+
+
 class MainWindow(QMainWindow):
+    PAGE_DESCRIPTIONS = {
+        "Главная": "Общая картина системы, показатели и быстрые действия.",
+        "Турниры": "Создание соревнований, управление статусами и формирование сеток.",
+        "Заявки": "Проверка заявок команд и управление допуском к турнирам.",
+        "Команды": "Справочник команд и зарегистрированных игроков.",
+        "Матчи и расписание": "Результаты матчей, даты, время, площадки и автоматическое расписание.",
+        "Расписание": "Календарь матчей и результаты выступлений команды.",
+        "Сетка": "Ход соревнований: олимпийская сетка или круговая таблица.",
+        "Таблица": "Турнирное положение и статистика команд.",
+        "Турнирная таблица": "Положение команд по результатам сыгранных матчей.",
+        "Рейтинг": "Рейтинг команд, рассчитанный по системе Эло.",
+        "Экспорт": "Выгрузка данных в форматы Excel и CSV.",
+        "Моя команда": "Данные команды и управление составом игроков.",
+        "Заявки на турниры": "Доступные соревнования и поданные заявки.",
+        "Моя статистика": "Показатели команды и история сыгранных матчей."
+    }
+
     def __init__(self, db_path=None):
         super().__init__()
         self.setWindowTitle("АРМ «Спортивный организатор»")
-        self.resize(1320, 820)
-        self.setMinimumSize(1050, 680)
+        self.resize(1440, 900)
+        self.setMinimumSize(1120, 720)
         self.db = dbm.Database(db_path or DB_FILE)
         self.user = None
         self.tabs = []
+        self.pages = {}
+        self.nav_buttons = {}
         self.setStyleSheet(APP_STYLE)
         self.refresh_shortcut = QShortcut(QKeySequence("F5"), self)
         self.refresh_shortcut.activated.connect(self.refresh_all)
@@ -1463,6 +1664,9 @@ class MainWindow(QMainWindow):
     def show_login(self):
         self.user = None
         self.tabs = []
+        self.pages = {}
+        self.nav_buttons = {}
+        self.statusBar().hide()
         self.setCentralWidget(LoginPage(self))
 
     def login_ok(self, user):
@@ -1475,71 +1679,181 @@ class MainWindow(QMainWindow):
         row = self.db.get_user(self.user["id"])
         return row["team_id"] if row else None
 
+    def _add_sidebar_heading(self, layout, text):
+        label = QLabel(text)
+        label.setObjectName("SidebarSection")
+        layout.addWidget(label)
+
+    def _add_nav_button(self, layout, title, page):
+        button = QPushButton(title)
+        button.setObjectName("NavButton")
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setMinimumHeight(42)
+        button.clicked.connect(
+            lambda checked=False, name=title: self.goto(name)
+        )
+        layout.addWidget(button)
+        self.nav_buttons[title] = button
+        self.pages[title] = page
+        self.tabs.append((title, page))
+
     def show_dashboard(self):
         root = QWidget()
-        layout = QVBoxLayout(root)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        root_layout = QHBoxLayout(root)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
 
-        header = QFrame()
-        header.setObjectName("Header")
-        header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(22, 13, 22, 13)
-        brand = QLabel("Спортивный организатор")
-        brand.setObjectName("Brand")
-        header_layout.addWidget(brand)
-        role = "организатор" if self.user["role"] == ROLE_ORG else "тренер"
-        account = QLabel(f"{self.user['full_name']}  ·  {role}")
-        account.setObjectName("SubBrand")
-        header_layout.addWidget(account)
-        header_layout.addStretch(1)
-        header_layout.addWidget(make_button("Обновить  ·  F5", self.refresh_all))
-        header_layout.addWidget(make_button("Выйти", self.show_login))
-        layout.addWidget(header)
+        sidebar = QFrame()
+        sidebar.setObjectName("Sidebar")
+        sidebar.setFixedWidth(252)
+        sidebar_layout = QVBoxLayout(sidebar)
+        sidebar_layout.setContentsMargins(16, 20, 16, 16)
+        sidebar_layout.setSpacing(5)
 
-        self.notebook = QTabWidget()
-        self.notebook.setDocumentMode(True)
-        layout.addWidget(self.notebook, 1)
-        self.setCentralWidget(root)
-        self.tabs = []
+        brand_row = QHBoxLayout()
+        brand_mark = QLabel("SO")
+        brand_mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        brand_mark.setFixedSize(42, 42)
+        brand_mark.setStyleSheet(
+            "background: #2563eb; color: white; border-radius: 11px; "
+            "font-size: 14pt; font-weight: 800;"
+        )
+        brand_text = QVBoxLayout()
+        brand = QLabel("SPORT ARM")
+        brand.setObjectName("SidebarBrand")
+        sub_brand = QLabel("СПОРТИВНЫЙ ОРГАНИЗАТОР")
+        sub_brand.setObjectName("SidebarSub")
+        brand_text.addWidget(brand)
+        brand_text.addWidget(sub_brand)
+        brand_row.addWidget(brand_mark)
+        brand_row.addLayout(brand_text, 1)
+        sidebar_layout.addLayout(brand_row)
+        sidebar_layout.addSpacing(22)
+
+        self._add_sidebar_heading(sidebar_layout, "ОБЗОР")
+        self._add_nav_button(sidebar_layout, "Главная", DashboardTab(self))
 
         if self.user["role"] == ROLE_ORG:
-            specs = [
+            self._add_sidebar_heading(sidebar_layout, "УПРАВЛЕНИЕ")
+            for title, factory in [
                 ("Турниры", TournamentsTab),
                 ("Заявки", ApplicationsTab),
                 ("Команды", TeamsTab),
                 ("Матчи и расписание", MatchesTab),
-                ("Сетка", BracketTab),
+                ("Сетка", BracketTab)
+            ]:
+                self._add_nav_button(sidebar_layout, title, factory(self))
+
+            self._add_sidebar_heading(sidebar_layout, "АНАЛИТИКА И ОТЧЁТЫ")
+            for title, factory in [
                 ("Таблица", StatsTab),
                 ("Рейтинг", RatingTab),
                 ("Экспорт", ExportTab)
-            ]
+            ]:
+                self._add_nav_button(sidebar_layout, title, factory(self))
         else:
-            specs = [
-                ("Моя команда", MyTeamTab),
-                ("Заявки на турниры", MyApplicationsTab),
-                ("Расписание", lambda app: MatchesTab(app, readonly=True)),
-                ("Сетка", BracketTab),
-                ("Таблица", StatsTab),
-                ("Моя статистика", MyStatsTab),
-                ("Рейтинг", RatingTab)
-            ]
-        for title, factory in specs:
-            tab = factory(self)
-            self.notebook.addTab(tab, title)
-            self.tabs.append((title, tab))
+            self._add_sidebar_heading(sidebar_layout, "МОЯ КОМАНДА")
+            self._add_nav_button(sidebar_layout, "Моя команда", MyTeamTab(self))
+            self._add_nav_button(sidebar_layout, "Заявки на турниры", MyApplicationsTab(self))
+            self._add_sidebar_heading(sidebar_layout, "СОРЕВНОВАНИЯ")
+            self._add_nav_button(
+                sidebar_layout, "Расписание", MatchesTab(self, readonly=True)
+            )
+            self._add_nav_button(sidebar_layout, "Сетка", BracketTab(self))
+            self._add_nav_button(sidebar_layout, "Таблица", StatsTab(self))
+            self._add_nav_button(sidebar_layout, "Моя статистика", MyStatsTab(self))
+            self._add_nav_button(sidebar_layout, "Рейтинг", RatingTab(self))
+
+        sidebar_layout.addStretch(1)
+
+        profile = QFrame()
+        profile.setObjectName("ProfileCard")
+        profile_layout = QVBoxLayout(profile)
+        profile_layout.setContentsMargins(12, 11, 12, 11)
+        profile_name = QLabel(self.user["full_name"] or self.user["login"])
+        profile_name.setObjectName("ProfileName")
+        profile_name.setWordWrap(True)
+        role = "Организатор" if self.user["role"] == ROLE_ORG else "Тренер / капитан"
+        profile_role = QLabel(role)
+        profile_role.setObjectName("ProfileRole")
+        logout = QPushButton("Выйти из системы")
+        logout.setStyleSheet(
+            "QPushButton { background: #253751; color: #dbe6f5; "
+            "border: 0; text-align: left; padding: 8px 9px; } "
+            "QPushButton:hover { background: #334967; color: white; }"
+        )
+        logout.clicked.connect(self.show_login)
+        profile_layout.addWidget(profile_name)
+        profile_layout.addWidget(profile_role)
+        profile_layout.addSpacing(5)
+        profile_layout.addWidget(logout)
+        sidebar_layout.addWidget(profile)
+
+        workspace = QFrame()
+        workspace.setObjectName("Workspace")
+        workspace_layout = QVBoxLayout(workspace)
+        workspace_layout.setContentsMargins(0, 0, 0, 0)
+        workspace_layout.setSpacing(0)
+
+        topbar = QFrame()
+        topbar.setObjectName("Topbar")
+        topbar.setMinimumHeight(86)
+        topbar_layout = QHBoxLayout(topbar)
+        topbar_layout.setContentsMargins(28, 14, 28, 14)
+        heading_layout = QVBoxLayout()
+        self.page_heading = QLabel("Главная")
+        self.page_heading.setObjectName("PageTitle")
+        self.page_caption = QLabel(self.PAGE_DESCRIPTIONS["Главная"])
+        self.page_caption.setObjectName("PageSubtitle")
+        heading_layout.addWidget(self.page_heading)
+        heading_layout.addWidget(self.page_caption)
+        topbar_layout.addLayout(heading_layout)
+        topbar_layout.addStretch(1)
+
+        role_chip = QLabel("ОРГАНИЗАТОР" if self.user["role"] == ROLE_ORG else "ТРЕНЕР")
+        role_chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        role_chip.setStyleSheet(
+            "background: #eff6ff; color: #1d4ed8; border-radius: 8px; "
+            "padding: 8px 11px; font-size: 8pt; font-weight: 800;"
+        )
+        topbar_layout.addWidget(role_chip)
+        refresh = QPushButton("Обновить  ·  F5")
+        refresh.setObjectName("Primary")
+        refresh.clicked.connect(self.refresh_all)
+        topbar_layout.addWidget(refresh)
+        workspace_layout.addWidget(topbar)
+
+        self.stack = QStackedWidget()
+        self.stack.setContentsMargins(0, 0, 0, 0)
+        for title, page in self.tabs:
+            self.stack.addWidget(page)
+        workspace_layout.addWidget(self.stack, 1)
+
+        root_layout.addWidget(sidebar)
+        root_layout.addWidget(workspace, 1)
+        self.setCentralWidget(root)
         self.statusBar().showMessage("Готово")
         self.refresh_all()
+        self.goto("Главная")
 
     def refresh_all(self):
-        for _, tab in self.tabs:
-            tab.refresh()
+        for _, page in self.tabs:
+            page.refresh()
 
     def goto(self, title):
-        for index in range(self.notebook.count()):
-            if self.notebook.tabText(index) == title:
-                self.notebook.setCurrentIndex(index)
-                return
+        page = self.pages.get(title)
+        if page is None:
+            return
+        self.stack.setCurrentWidget(page)
+        self.page_heading.setText(title)
+        self.page_caption.setText(
+            self.PAGE_DESCRIPTIONS.get(title, "Рабочий раздел программы.")
+        )
+        for name, button in self.nav_buttons.items():
+            button.setObjectName("NavActive" if name == title else "NavButton")
+            button.style().unpolish(button)
+            button.style().polish(button)
+        self.notify(f"Открыт раздел: {title}")
 
     def closeEvent(self, event):
         try:
