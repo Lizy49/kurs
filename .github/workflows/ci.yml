@@ -1,0 +1,75 @@
+name: PyQt6 application checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "sport_arm/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "sport_arm/**"
+      - ".github/workflows/ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: sport_arm/requirements.txt
+
+      - name: Install dependencies
+        working-directory: sport_arm
+        run: python -m pip install -r requirements.txt
+
+      - name: Compile Python files
+        working-directory: sport_arm
+        run: python -m py_compile main.py qt_main.py database.py
+
+      - name: Run business-logic tests
+        working-directory: sport_arm
+        run: python -m unittest discover -s tests -v
+
+      - name: Smoke-test PyQt interface and both bracket modes
+        working-directory: sport_arm
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python - <<'PY'
+          from PyQt6.QtWidgets import QApplication
+          import database as dbm
+          from qt_main import MainWindow
+
+          qt = QApplication([])
+          window = MainWindow(":memory:")
+          user = window.db.login("admin", "admin")
+          assert user is not None
+          window.login_ok(user)
+
+          assert dbm.load_demo(window.db)
+          tournaments = window.db.list_tournaments()
+          assert len(tournaments) == 2
+          for tournament in tournaments:
+              window.db.generate_bracket(tournament["id"])
+
+          window.refresh_all()
+          bracket = next(tab for name, tab in window.tabs if name == "Сетка")
+          assert bracket.selector.combo.count() == 2
+          bracket.selector.combo.setCurrentIndex(1)
+          bracket.fill()
+
+          window.close()
+          qt.quit()
+          print("PyQt interface and bracket smoke test passed.")
+          PY
