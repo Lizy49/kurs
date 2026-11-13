@@ -72,6 +72,20 @@ jobs:
           bracket.selector.combo.setCurrentIndex(1)
           bracket.fill()
 
+          # Also exercise the trainer layout and every trainer page.
+          window.show_login()
+          coach = window.db.login("coach", "coach")
+          assert coach is not None
+          window.login_ok(coach)
+          expected_pages = {
+              "Главная", "Моя команда", "Заявки на турниры", "Расписание",
+              "Сетка", "Таблица", "Моя статистика", "Рейтинг"
+          }
+          assert set(window.pages) == expected_pages
+          window.refresh_all()
+          for page_name in expected_pages:
+              window.goto(page_name)
+
           window.close()
           qt.quit()
           print("PyQt interface and bracket smoke test passed.")
