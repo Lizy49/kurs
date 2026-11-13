@@ -1000,11 +1000,11 @@ class BracketTab(BaseTab):
                         )
                         self.scene.addLine(
                             x1 + gap_x / 2, py, x1 + gap_x / 2, center_y,
-                            QBrush(QColor("#94a3b8")).color()
+                            QPen(QColor("#94a3b8"))
                         )
                     self.scene.addLine(
                         x - gap_x / 2, center_y, x, center_y,
-                        QBrush(QColor("#94a3b8")).color()
+                        QPen(QColor("#94a3b8"))
                     )
         rect = self.scene.itemsBoundingRect()
         self.scene.setSceneRect(rect.adjusted(-20, -10, 30, 25))
@@ -1014,7 +1014,7 @@ class BracketTab(BaseTab):
         border = QColor("#f59e0b") if own else QColor("#94a3b8")
         self.scene.addRect(x, y, width, height, QPen(border), QBrush(QColor("#ffffff")))
         self.scene.addLine(x, y + height / 2, x + width, y + height / 2,
-                           QPen(QColor("#e2e8f0"))
+                           QPen(QColor("#e2e8f0")))
         for index, (name, score, team_id) in enumerate((
             (match["team1_name"], match["score1"], match["team1_id"]),
             (match["team2_name"], match["score2"], match["team2_id"])
@@ -1026,7 +1026,7 @@ class BracketTab(BaseTab):
                 text = "★ " + text
             label = self.scene.addText(text)
             label.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold if
-                                match["winner_id"] == team_id else QFont.Weight.Normal))
+                                team_id is not None and match["winner_id"] == team_id else QFont.Weight.Normal))
             label.setDefaultTextColor(QColor("#172033" if name else "#94a3b8"))
             label.setPos(x + 8, y + index * height / 2 + 5)
             if score is not None:
