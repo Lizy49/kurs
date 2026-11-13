@@ -436,18 +436,13 @@ class BaseTab(QWidget):
         self.app = app
         self.db = app.db
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(18, 18, 18, 18)
-        self.layout.setSpacing(12)
+        self.layout.setContentsMargins(24, 22, 24, 22)
+        self.layout.setSpacing(14)
 
     def title(self, text, hint=None):
-        label = QLabel(text)
-        label.setObjectName("PageTitle")
-        self.layout.addWidget(label)
-        if hint:
-            sub = QLabel(hint)
-            sub.setObjectName("Muted")
-            sub.setWordWrap(True)
-            self.layout.addWidget(sub)
+        # Заголовок и описание раздела уже находятся в общей верхней панели.
+        # Не дублируем их в рабочей области.
+        return
 
     def toolbar(self, *buttons):
         row = QHBoxLayout()
@@ -1572,12 +1567,20 @@ class DashboardTab(BaseTab):
         quick_hint.setObjectName("Muted")
         quick_layout.addWidget(quick_hint)
         self.quick_buttons = []
-        self.quick_target = [
-            ("Создать / открыть турниры", "Турниры"),
-            ("Рассмотреть заявки", "Заявки"),
-            ("Открыть расписание матчей", "Матчи и расписание"),
-            ("Посмотреть турнирную таблицу", "Таблица")
-        ]
+        if app.user["role"] == ROLE_ORG:
+            self.quick_target = [
+                ("Создать / открыть турниры", "Турниры"),
+                ("Рассмотреть заявки", "Заявки"),
+                ("Открыть расписание матчей", "Матчи и расписание"),
+                ("Посмотреть турнирную таблицу", "Таблица")
+            ]
+        else:
+            self.quick_target = [
+                ("Открыть мою команду", "Моя команда"),
+                ("Подать заявку на турнир", "Заявки на турниры"),
+                ("Посмотреть расписание", "Расписание"),
+                ("Открыть мою статистику", "Моя статистика")
+            ]
         for text, target in self.quick_target:
             button = QPushButton("›   " + text)
             button.setObjectName("NavButton")
@@ -1602,13 +1605,18 @@ class DashboardTab(BaseTab):
     def refresh(self):
         tournaments = self.db.list_tournaments()
         teams = self.db.list_teams()
-        applications = self.db.list_applications()
+        team_id = self.app.team_id()
+        applications = (
+            self.db.list_applications(team_id=team_id)
+            if team_id is not None else self.db.list_applications()
+        )
         pending = sum(1 for item in applications if item["status"] == "pending")
         played = 0
         for tournament in tournaments:
             played += sum(
                 1 for match in self.db.list_matches(tournament["id"])
                 if match["status"] == "played"
+                and (team_id is None or team_id in (match["team1_id"], match["team2_id"]))
             )
 
         self.metric_values["tournaments"].setText(str(len(tournaments)))
