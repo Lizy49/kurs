@@ -1840,6 +1840,7 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(sidebar)
         root_layout.addWidget(workspace, 1)
         self.setCentralWidget(root)
+        self.statusBar().show()
         self.statusBar().showMessage("Готово")
         self.refresh_all()
         self.goto("Главная")
