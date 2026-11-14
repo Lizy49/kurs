@@ -50,8 +50,37 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: |
           python - <<'PY'
-          from PyQt6.QtWidgets import QApplication
-          from qt_main import MainWindow
+          from PyQt6.QtWidgets import QApplication, QDialog
+          from qt_main import (
+              MainWindow, FormDialog, POSITION_OPTIONS, POSITION_PLACEHOLDER,
+              selected_player_position,
+          )
+
+
+          def check_position_dropdown(parent, fields, field_key):
+              field = next(item for item in fields if item["key"] == field_key)
+              assert field["kind"] == "combo"
+              assert field["values"] == POSITION_OPTIONS
+              dialog = FormDialog(
+                  parent,
+                  "Position selection test",
+                  [field],
+                  lambda values: selected_player_position(values[field_key]),
+              )
+              combo = dialog.widgets[field_key]
+              assert not combo.isEditable()
+              assert combo.count() == len(POSITION_OPTIONS)
+              assert combo.currentText() == POSITION_PLACEHOLDER
+
+              # The placeholder cannot be saved as a real player position.
+              dialog._submit()
+              assert "Выберите амплуа" in dialog.error.text()
+
+              # A position selected from the fixed list is accepted.
+              combo.setCurrentIndex(1)
+              dialog._submit()
+              assert dialog.result() == QDialog.DialogCode.Accepted
+              dialog.close()
 
           qt = QApplication([])
           window = MainWindow(":memory:")
@@ -69,6 +98,10 @@ jobs:
           organizer = window.db.get_user(organizer_id)
           assert organizer is not None
           window.login_ok(organizer)
+
+          # Organizer's player form also uses a locked dropdown.
+          organizer_teams = window.pages["Команды"]
+          check_position_dropdown(window, organizer_teams.player_fields(), "position")
 
           # Add teams and players manually, then run both tournament systems.
           team_ids = []
@@ -110,6 +143,10 @@ jobs:
           coach = window.db.get_user(coach_id)
           assert window.db.login("coach_ci", "CoachPass2") is not None
           window.login_ok(coach)
+
+          # Coach/captain cannot type an arbitrary position either.
+          coach_team = window.pages["Моя команда"]
+          check_position_dropdown(window, coach_team.player_fields(), "pos")
 
           expected_pages = {
               "Главная", "Моя команда", "Заявки на турниры", "Расписание",

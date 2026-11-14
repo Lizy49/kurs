@@ -31,7 +31,16 @@ POSITIONS = [
     "Связующий", "Диагональный", "Доигровщик",
     "Центральный блокирующий", "Либеро"
 ]
+POSITION_PLACEHOLDER = "Выберите амплуа"
+POSITION_OPTIONS = [POSITION_PLACEHOLDER] + POSITIONS
 SYSTEM_BY_LABEL = {value: key for key, value in SYSTEM_NAMES.items()}
+
+
+def selected_player_position(value):
+    """Не принимает произвольный текст или пропущенное амплуа."""
+    if value not in POSITIONS:
+        raise ValidationError("Выберите амплуа игрока из выпадающего списка.")
+    return value
 
 
 APP_STYLE = """
@@ -1035,26 +1044,32 @@ class TeamsTab(BaseTab):
         self.refresh()
         self.app.notify("Команда удалена")
 
+    def player_fields(self):
+        return [
+            {"key": "full_name", "label": "ФИО игрока"},
+            {"key": "number", "label": "Игровой номер"},
+            {"key": "position", "label": "Амплуа", "kind": "combo",
+             "values": POSITION_OPTIONS},
+            {"key": "birth_year", "label": "Год рождения"},
+        ]
+
     def add_player(self):
         team_id = self.selected_team()
         if team_id is None:
             return
-        fields = [
-            {"key": "full_name", "label": "ФИО игрока"},
-            {"key": "number", "label": "Игровой номер"},
-            {"key": "position", "label": "Амплуа", "kind": "combo",
-             "values": ["Не указано"] + POSITIONS},
-            {"key": "birth_year", "label": "Год рождения"},
-        ]
+        fields = self.player_fields()
 
         def submit(values):
-            position = "" if values["position"] == "Не указано" else values["position"]
+            position = selected_player_position(values["position"])
             self.db.add_player(
                 team_id, values["full_name"], values["number"],
                 position, values["birth_year"],
             )
 
-        if show_form(self, "Новый игрок", fields, submit, {"position": "Не указано"}):
+        if show_form(
+            self, "Новый игрок", fields, submit,
+            {"position": POSITION_PLACEHOLDER},
+        ):
             self.refresh()
             self.app.notify("Игрок добавлен")
 
@@ -1073,21 +1088,16 @@ class TeamsTab(BaseTab):
         if player is None:
             info(self, "Игроки", "Игрок не найден.")
             return
-        fields = [
-            {"key": "full_name", "label": "ФИО игрока"},
-            {"key": "number", "label": "Игровой номер"},
-            {"key": "position", "label": "Амплуа", "kind": "combo",
-             "values": ["Не указано"] + POSITIONS},
-            {"key": "birth_year", "label": "Год рождения"},
-        ]
+        fields = self.player_fields()
         initial = {
             "full_name": player["full_name"], "number": player["number"],
-            "position": player["position"] or "Не указано",
+            "position": player["position"] if player["position"] in POSITIONS
+                        else POSITION_PLACEHOLDER,
             "birth_year": player["birth_year"],
         }
 
         def submit(values):
-            position = "" if values["position"] == "Не указано" else values["position"]
+            position = selected_player_position(values["position"])
             self.db.update_player(
                 player_id, values["full_name"], values["number"],
                 position, values["birth_year"],
@@ -1679,7 +1689,8 @@ class MyTeamTab(BaseTab):
         return [
             {"key": "name", "label": "ФИО игрока"},
             {"key": "number", "label": "Номер (0–99)"},
-            {"key": "pos", "label": "Амплуа", "kind": "combo_free", "values": POSITIONS},
+            {"key": "pos", "label": "Амплуа", "kind": "combo",
+             "values": POSITION_OPTIONS},
             {"key": "year", "label": "Год рождения"}
         ]
 
@@ -1687,7 +1698,10 @@ class MyTeamTab(BaseTab):
         team_id = self.app.team_id()
 
         def submit(v):
-            self.db.add_player(team_id, v["name"], v["number"], v["pos"], v["year"])
+            position = selected_player_position(v["pos"])
+            self.db.add_player(
+                team_id, v["name"], v["number"], position, v["year"]
+            )
         if show_form(self, "Новый игрок", self.player_fields(), submit, {"year": "2004"}):
             self.app.notify("Игрок добавлен")
             self.app.refresh_all()
@@ -1702,12 +1716,15 @@ class MyTeamTab(BaseTab):
         )
         initial = {
             "name": player["full_name"], "number": player["number"],
-            "pos": player["position"], "year": player["birth_year"]
+            "pos": player["position"] if player["position"] in POSITIONS
+                   else POSITION_PLACEHOLDER,
+            "year": player["birth_year"]
         }
 
         def submit(v):
+            position = selected_player_position(v["pos"])
             self.db.update_player(
-                player_id, v["name"], v["number"], v["pos"], v["year"]
+                player_id, v["name"], v["number"], position, v["year"]
             )
         if show_form(self, "Изменение игрока", self.player_fields(), submit, initial):
             self.app.notify("Данные игрока сохранены")
