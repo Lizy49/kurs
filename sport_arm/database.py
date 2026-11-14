@@ -262,20 +262,40 @@ class Database:
         self.conn.execute("PRAGMA foreign_keys=ON")
         self.conn.executescript(SCHEMA)
         self.conn.commit()
-        self._seed_admin()
 
     def close(self):
         self.conn.close()
 
-    def _seed_admin(self):
-        row = self.conn.execute("SELECT 1 FROM users WHERE role=?", (ROLE_ORG,)).fetchone()
-        if row is None:
-            self.conn.execute(
-                "INSERT INTO users(login, pass_hash, role, full_name) VALUES(?,?,?,?)",
-                ("admin", hash_password("admin"), ROLE_ORG, "Главный организатор"))
-            self.conn.commit()
-
     # ------------------------------------------------------- пользователи
+
+    def has_organizer(self):
+        """Возвращает True, если в базе уже создан организатор."""
+        return self.conn.execute(
+            "SELECT 1 FROM users WHERE role=? LIMIT 1", (ROLE_ORG,)
+        ).fetchone() is not None
+
+    def create_organizer(self, login, password, full_name):
+        """Создаёт первую учётную запись организатора с выбранными пользователем данными."""
+        login = need_text(login, "Логин", 30)
+        if len(login) < 3:
+            raise ValidationError("Логин должен содержать минимум 3 символа.")
+        if len(password or "") < 8:
+            raise ValidationError("Пароль организатора должен содержать минимум 8 символов.")
+        if len(password) > 128:
+            raise ValidationError("Пароль слишком длинный.")
+        full_name = need_text(full_name, "ФИО", 100)
+        with self.conn:
+            if self.has_organizer():
+                raise ValidationError("Учётная запись организатора уже создана.")
+            if self.conn.execute(
+                "SELECT 1 FROM users WHERE login=?", (login,)
+            ).fetchone():
+                raise ValidationError("Пользователь с таким логином уже существует.")
+            cur = self.conn.execute(
+                "INSERT INTO users(login, pass_hash, role, full_name) VALUES(?,?,?,?)",
+                (login, hash_password(password), ROLE_ORG, full_name),
+            )
+        return cur.lastrowid
 
     def login(self, login, password):
         row = self.conn.execute("SELECT * FROM users WHERE login=?",
@@ -372,6 +392,25 @@ class Database:
         return self.conn.execute(
             "SELECT t.*, (SELECT COUNT(*) FROM players p WHERE p.team_id=t.id) AS players_count "
             "FROM teams t WHERE t.id=?", (team_id,)).fetchone()
+
+    def create_team(self, name, city="", captain=""):
+        name = need_text(name, "Название команды")
+        city = (city or "").strip()
+        captain = (captain or "").strip()
+        if self.conn.execute("SELECT 1 FROM teams WHERE name=?", (name,)).fetchone():
+            raise ValidationError("Команда с таким названием уже существует.")
+        with self.conn:
+            cur = self.conn.execute(
+                "INSERT INTO teams(name, city, captain) VALUES(?,?,?)",
+                (name, city, captain),
+            )
+        return cur.lastrowid
+
+    def delete_team(self, team_id):
+        if self.get_team(team_id) is None:
+            raise ValidationError("Команда не найдена.")
+        with self.conn:
+            self.conn.execute("DELETE FROM teams WHERE id=?", (team_id,))
 
     def update_team(self, team_id, name, city, captain):
         name = need_text(name, "Название команды")
@@ -1047,63 +1086,3 @@ def export_to_file(path, title, headers, rows):
         write_xlsx(path, title, headers, rows)
     else:
         write_csv(path, headers, rows)
-
-
-# ------------------------------------------------------------- демо-данные
-
-DEMO_TEAMS = [
-    ("Вымпел", "Магадан"), ("Северные волки", "Магадан"), ("Колыма", "Сусуман"),
-    ("Авангард", "Ола"), ("Буревестник", "Палатка"), ("Динамо-Север", "Ягодное"),
-    ("Золотой сет", "Омсукчан"), ("Полярная звезда", "Эвенск"),
-]
-DEMO_SURNAMES = ["Иванов", "Петров", "Сидоров", "Кузнецов", "Смирнов", "Попов", "Васильев",
-                 "Соколов", "Михайлов", "Новиков", "Фёдоров", "Морозов", "Волков", "Алексеев"]
-DEMO_NAMES = ["Алексей", "Дмитрий", "Максим", "Иван", "Сергей", "Андрей", "Никита", "Егор"]
-DEMO_POSITIONS = ["Связующий", "Либеро", "Доигровщик", "Доигровщик",
-                  "Центральный блокирующий", "Центральный блокирующий", "Диагональный"]
-
-
-def load_demo(db):
-    """Заполняет базу демонстрационными данными. Возвращает False, если команды уже есть."""
-    if db.conn.execute("SELECT COUNT(*) FROM teams").fetchone()[0]:
-        return False
-    today = datetime.date.today()
-    team_ids = []
-    with db.conn:
-        for ti, (name, city) in enumerate(DEMO_TEAMS):
-            cur = db.conn.execute("INSERT INTO teams(name, city, captain) VALUES(?,?,?)",
-                                  (name, city, f"{DEMO_SURNAMES[ti]} {DEMO_NAMES[ti]}"))
-            team_ids.append(cur.lastrowid)
-            for pi in range(7):
-                db.conn.execute(
-                    "INSERT INTO players(team_id, full_name, number, position, birth_year) "
-                    "VALUES(?,?,?,?,?)",
-                    (cur.lastrowid,
-                     f"{DEMO_SURNAMES[(ti + pi) % len(DEMO_SURNAMES)]} "
-                     f"{DEMO_NAMES[(ti * 3 + pi) % len(DEMO_NAMES)]}",
-                     pi + 1, DEMO_POSITIONS[pi], 2002 + (ti + pi) % 5))
-        db.conn.execute(
-            "INSERT INTO users(login, pass_hash, role, full_name, team_id) VALUES(?,?,?,?,?)",
-            ("coach", hash_password("coach"), ROLE_COACH, "Тренер Вымпела", team_ids[0]))
-    t1 = db.create_tournament(
-        "Кубок колледжа", "Волейбол", "olympic",
-        (today + datetime.timedelta(days=3)).isoformat(),
-        (today + datetime.timedelta(days=10)).isoformat(), "Спорткомплекс «Север»")
-    t2 = db.create_tournament(
-        "Чемпионат города", "Волейбол", "round_robin",
-        (today + datetime.timedelta(days=14)).isoformat(),
-        (today + datetime.timedelta(days=30)).isoformat(), "Дворец спорта")
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    with db.conn:
-        for tid in team_ids[1:]:          # 7 команд — в сетке будет автопроход
-            db.conn.execute(
-                "INSERT INTO applications(tournament_id, team_id, status, created_at) "
-                "VALUES(?,?,?,?)", (t1, tid, "approved", now))
-        for tid in team_ids[2:7]:         # 5 команд — круговая система
-            db.conn.execute(
-                "INSERT INTO applications(tournament_id, team_id, status, created_at) "
-                "VALUES(?,?,?,?)", (t2, tid, "approved", now))
-        db.conn.execute(
-            "INSERT INTO applications(tournament_id, team_id, status, created_at) "
-            "VALUES(?,?,?,?)", (t2, team_ids[7], "pending", now))
-    return True
