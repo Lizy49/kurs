@@ -463,3 +463,47 @@ class DemoTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
+
+
+
+class OfficialLeagueImportTests(unittest.TestCase):
+    def test_import_official_teams_is_idempotent(self):
+        from website_import import import_magadan_teams
+
+        db = make_db()
+        first = import_magadan_teams(db)
+        self.assertEqual(first["added_teams"], 14)
+        self.assertEqual(first["imported_rows"], 22)
+        self.assertEqual(first["total_teams"], 14)
+        self.assertEqual(
+            db.conn.execute(
+                "SELECT COUNT(*) FROM team_season_standings WHERE season='2026-2027'"
+            ).fetchone()[0], 11
+        )
+        self.assertEqual(
+            db.conn.execute(
+                "SELECT COUNT(*) FROM team_season_standings WHERE season='2025-2026'"
+            ).fetchone()[0], 11
+        )
+        self.assertEqual(len(db.list_teams()), 14)
+        self.assertEqual(
+            db.conn.execute("SELECT COUNT(*) FROM players").fetchone()[0], 0,
+            "Импорт не должен выдумывать составы игроков",
+        )
+
+        second = import_magadan_teams(db)
+        self.assertEqual(second["added_teams"], 0)
+        self.assertEqual(second["imported_rows"], 22)
+        self.assertEqual(second["total_teams"], 14)
+        self.assertEqual(len(db.list_team_season_stats()), 22)
+
+    def test_old_season_only_teams_are_kept_as_archive(self):
+        from website_import import import_magadan_teams
+
+        db = make_db()
+        import_magadan_teams(db)
+        archive_names = {
+            row["name"] for row in db.list_teams()
+            if not db.list_team_season_stats("2026-2027", row["id"])
+        }
+        self.assertEqual(archive_names, {"Бей-Беги", "Больные Колени", "Искра"})
