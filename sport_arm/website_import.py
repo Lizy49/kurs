@@ -351,7 +351,7 @@ def import_magadan_teams(db):
                          STANDOUTS.get(name, ("", "", ""))[0], team_id),
                     )
                 team_ids[name] = team_id
-                official_captain = OFFICIAL_CAPTAINS.get(name, "")
+                official_captain = OFFICIAL_CAPTAINS.get(name, ("", ""))[0]
                 if official_captain:
                     db.conn.execute(
                         """
