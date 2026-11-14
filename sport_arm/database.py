@@ -161,58 +161,6 @@ CREATE TABLE IF NOT EXISTS players(
     birth_year INTEGER NOT NULL,
     UNIQUE(team_id, number)
 );
-CREATE TABLE IF NOT EXISTS team_season_standings(
-    team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-    league TEXT NOT NULL,
-    season TEXT NOT NULL,
-    place INTEGER NOT NULL,
-    points INTEGER NOT NULL DEFAULT 0,
-    matches_played INTEGER NOT NULL DEFAULT 0,
-    wins INTEGER NOT NULL DEFAULT 0,
-    losses INTEGER NOT NULL DEFAULT 0,
-    points_scored INTEGER NOT NULL DEFAULT 0,
-    points_conceded INTEGER NOT NULL DEFAULT 0,
-    points_ratio REAL NOT NULL DEFAULT 0,
-    sets_won INTEGER NOT NULL DEFAULT 0,
-    sets_lost INTEGER NOT NULL DEFAULT 0,
-    sets_ratio REAL NOT NULL DEFAULT 0,
-    source_url TEXT NOT NULL DEFAULT '',
-    imported_at TEXT NOT NULL DEFAULT '',
-    PRIMARY KEY(team_id, season)
-);
-CREATE TABLE IF NOT EXISTS official_team_roster(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-    season TEXT NOT NULL,
-    jersey_number INTEGER NOT NULL,
-    full_name TEXT NOT NULL,
-    reception INTEGER NOT NULL DEFAULT 0,
-    blocks INTEGER NOT NULL DEFAULT 0,
-    aces INTEGER NOT NULL DEFAULT 0,
-    defense INTEGER NOT NULL DEFAULT 0,
-    errors INTEGER NOT NULL DEFAULT 0,
-    source_url TEXT NOT NULL DEFAULT '',
-    imported_at TEXT NOT NULL DEFAULT '',
-    UNIQUE(team_id, season, full_name)
-);
-CREATE INDEX IF NOT EXISTS idx_official_roster_team_season
-    ON official_team_roster(team_id, season);
-CREATE TABLE IF NOT EXISTS official_team_accounts(
-    team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-    season TEXT NOT NULL,
-    user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-    login TEXT NOT NULL UNIQUE,
-    full_name TEXT NOT NULL,
-    PRIMARY KEY(team_id, season)
-);
-CREATE TABLE IF NOT EXISTS official_team_captains(
-    team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-    season TEXT NOT NULL,
-    full_name TEXT NOT NULL,
-    source_url TEXT NOT NULL DEFAULT '',
-    imported_at TEXT NOT NULL DEFAULT '',
-    PRIMARY KEY(team_id, season)
-);
 CREATE TABLE IF NOT EXISTS tournaments(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE COLLATE RUNOCASE,
@@ -262,20 +210,40 @@ class Database:
         self.conn.execute("PRAGMA foreign_keys=ON")
         self.conn.executescript(SCHEMA)
         self.conn.commit()
-        self._seed_admin()
 
     def close(self):
         self.conn.close()
 
-    def _seed_admin(self):
-        row = self.conn.execute("SELECT 1 FROM users WHERE role=?", (ROLE_ORG,)).fetchone()
-        if row is None:
-            self.conn.execute(
-                "INSERT INTO users(login, pass_hash, role, full_name) VALUES(?,?,?,?)",
-                ("admin", hash_password("admin"), ROLE_ORG, "Главный организатор"))
-            self.conn.commit()
-
     # ------------------------------------------------------- пользователи
+
+    def has_organizer(self):
+        """Возвращает True, если в базе уже создан организатор."""
+        return self.conn.execute(
+            "SELECT 1 FROM users WHERE role=? LIMIT 1", (ROLE_ORG,)
+        ).fetchone() is not None
+
+    def create_organizer(self, login, password, full_name):
+        """Создаёт первую учётную запись организатора с выбранными пользователем данными."""
+        login = need_text(login, "Логин", 30)
+        if len(login) < 3:
+            raise ValidationError("Логин должен содержать минимум 3 символа.")
+        if len(password or "") < 8:
+            raise ValidationError("Пароль организатора должен содержать минимум 8 символов.")
+        if len(password) > 128:
+            raise ValidationError("Пароль слишком длинный.")
+        full_name = need_text(full_name, "ФИО", 100)
+        with self.conn:
+            if self.has_organizer():
+                raise ValidationError("Учётная запись организатора уже создана.")
+            if self.conn.execute(
+                "SELECT 1 FROM users WHERE login=?", (login,)
+            ).fetchone():
+                raise ValidationError("Пользователь с таким логином уже существует.")
+            cur = self.conn.execute(
+                "INSERT INTO users(login, pass_hash, role, full_name) VALUES(?,?,?,?)",
+                (login, hash_password(password), ROLE_ORG, full_name),
+            )
+        return cur.lastrowid
 
     def login(self, login, password):
         row = self.conn.execute("SELECT * FROM users WHERE login=?",
@@ -317,61 +285,29 @@ class Database:
             "SELECT t.*, (SELECT COUNT(*) FROM players p WHERE p.team_id=t.id) AS players_count "
             "FROM teams t ORDER BY t.name").fetchall()
 
-    def list_team_season_stats(self, season=None, team_id=None):
-        """Сезонная статистика команд, загруженная из таблиц лиги."""
-        clauses = []
-        params = []
-        if season:
-            clauses.append("season=?")
-            params.append(season)
-        if team_id is not None:
-            clauses.append("team_id=?")
-            params.append(team_id)
-        where = " WHERE " + " AND ".join(clauses) if clauses else ""
-        return self.conn.execute(
-            "SELECT * FROM team_season_standings" + where +
-            " ORDER BY season DESC, place ASC", params
-        ).fetchall()
-
-    def list_official_roster(self, season="2026-2027", team_id=None):
-        """Официальный состав команды из снимка сайта лиги за выбранный сезон."""
-        if team_id is None:
-            return self.conn.execute(
-                "SELECT * FROM official_team_roster WHERE season=? "
-                "ORDER BY team_id, jersey_number, full_name",
-                (season,),
-            ).fetchall()
-        return self.conn.execute(
-            "SELECT * FROM official_team_roster WHERE season=? AND team_id=? "
-            "ORDER BY jersey_number, full_name",
-            (season, team_id),
-        ).fetchall()
-
-    def list_official_team_accounts(self, season="2026-2027"):
-        """Локальные тренерские аккаунты, созданные импортом официальных капитанов."""
-        return self.conn.execute(
-            """
-            SELECT a.team_id, a.season, a.login, a.full_name, u.id AS user_id
-            FROM official_team_accounts a
-            JOIN users u ON u.id=a.user_id
-            WHERE a.season=?
-            ORDER BY a.full_name
-            """,
-            (season,),
-        ).fetchall()
-
-    def get_official_team_captain(self, team_id, season="2026-2027"):
-        """Имя капитана, прямо указанное на странице Федерации."""
-        row = self.conn.execute(
-            "SELECT full_name FROM official_team_captains WHERE team_id=? AND season=?",
-            (team_id, season),
-        ).fetchone()
-        return row["full_name"] if row else None
-
     def get_team(self, team_id):
         return self.conn.execute(
             "SELECT t.*, (SELECT COUNT(*) FROM players p WHERE p.team_id=t.id) AS players_count "
             "FROM teams t WHERE t.id=?", (team_id,)).fetchone()
+
+    def create_team(self, name, city="", captain=""):
+        name = need_text(name, "Название команды")
+        city = (city or "").strip()
+        captain = (captain or "").strip()
+        if self.conn.execute("SELECT 1 FROM teams WHERE name=?", (name,)).fetchone():
+            raise ValidationError("Команда с таким названием уже существует.")
+        with self.conn:
+            cur = self.conn.execute(
+                "INSERT INTO teams(name, city, captain) VALUES(?,?,?)",
+                (name, city, captain),
+            )
+        return cur.lastrowid
+
+    def delete_team(self, team_id):
+        if self.get_team(team_id) is None:
+            raise ValidationError("Команда не найдена.")
+        with self.conn:
+            self.conn.execute("DELETE FROM teams WHERE id=?", (team_id,))
 
     def update_team(self, team_id, name, city, captain):
         name = need_text(name, "Название команды")
@@ -1047,63 +983,3 @@ def export_to_file(path, title, headers, rows):
         write_xlsx(path, title, headers, rows)
     else:
         write_csv(path, headers, rows)
-
-
-# ------------------------------------------------------------- демо-данные
-
-DEMO_TEAMS = [
-    ("Вымпел", "Магадан"), ("Северные волки", "Магадан"), ("Колыма", "Сусуман"),
-    ("Авангард", "Ола"), ("Буревестник", "Палатка"), ("Динамо-Север", "Ягодное"),
-    ("Золотой сет", "Омсукчан"), ("Полярная звезда", "Эвенск"),
-]
-DEMO_SURNAMES = ["Иванов", "Петров", "Сидоров", "Кузнецов", "Смирнов", "Попов", "Васильев",
-                 "Соколов", "Михайлов", "Новиков", "Фёдоров", "Морозов", "Волков", "Алексеев"]
-DEMO_NAMES = ["Алексей", "Дмитрий", "Максим", "Иван", "Сергей", "Андрей", "Никита", "Егор"]
-DEMO_POSITIONS = ["Связующий", "Либеро", "Доигровщик", "Доигровщик",
-                  "Центральный блокирующий", "Центральный блокирующий", "Диагональный"]
-
-
-def load_demo(db):
-    """Заполняет базу демонстрационными данными. Возвращает False, если команды уже есть."""
-    if db.conn.execute("SELECT COUNT(*) FROM teams").fetchone()[0]:
-        return False
-    today = datetime.date.today()
-    team_ids = []
-    with db.conn:
-        for ti, (name, city) in enumerate(DEMO_TEAMS):
-            cur = db.conn.execute("INSERT INTO teams(name, city, captain) VALUES(?,?,?)",
-                                  (name, city, f"{DEMO_SURNAMES[ti]} {DEMO_NAMES[ti]}"))
-            team_ids.append(cur.lastrowid)
-            for pi in range(7):
-                db.conn.execute(
-                    "INSERT INTO players(team_id, full_name, number, position, birth_year) "
-                    "VALUES(?,?,?,?,?)",
-                    (cur.lastrowid,
-                     f"{DEMO_SURNAMES[(ti + pi) % len(DEMO_SURNAMES)]} "
-                     f"{DEMO_NAMES[(ti * 3 + pi) % len(DEMO_NAMES)]}",
-                     pi + 1, DEMO_POSITIONS[pi], 2002 + (ti + pi) % 5))
-        db.conn.execute(
-            "INSERT INTO users(login, pass_hash, role, full_name, team_id) VALUES(?,?,?,?,?)",
-            ("coach", hash_password("coach"), ROLE_COACH, "Тренер Вымпела", team_ids[0]))
-    t1 = db.create_tournament(
-        "Кубок колледжа", "Волейбол", "olympic",
-        (today + datetime.timedelta(days=3)).isoformat(),
-        (today + datetime.timedelta(days=10)).isoformat(), "Спорткомплекс «Север»")
-    t2 = db.create_tournament(
-        "Чемпионат города", "Волейбол", "round_robin",
-        (today + datetime.timedelta(days=14)).isoformat(),
-        (today + datetime.timedelta(days=30)).isoformat(), "Дворец спорта")
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    with db.conn:
-        for tid in team_ids[1:]:          # 7 команд — в сетке будет автопроход
-            db.conn.execute(
-                "INSERT INTO applications(tournament_id, team_id, status, created_at) "
-                "VALUES(?,?,?,?)", (t1, tid, "approved", now))
-        for tid in team_ids[2:7]:         # 5 команд — круговая система
-            db.conn.execute(
-                "INSERT INTO applications(tournament_id, team_id, status, created_at) "
-                "VALUES(?,?,?,?)", (t2, tid, "approved", now))
-        db.conn.execute(
-            "INSERT INTO applications(tournament_id, team_id, status, created_at) "
-            "VALUES(?,?,?,?)", (t2, team_ids[7], "pending", now))
-    return True

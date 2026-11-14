@@ -20,7 +20,6 @@ from PyQt6.QtWidgets import (
 )
 
 import database as dbm
-from website_import import import_magadan_teams
 from database import (
     APP_STATUS, MATCH_STATUS, ROLE_COACH, ROLE_ORG, SYSTEM_NAMES,
     TOURNAMENT_STATUS, ValidationError, fmt_date
@@ -181,11 +180,6 @@ QLabel#AuthFeatureText { color: #c2d0df; font-size: 8pt; }
 QFrame#AuthPanel { background-color: #ffffff; border: none; }
 QLabel#AuthTitle { color: #1c2d44; font-size: 20pt; font-weight: 600; }
 QLabel#AuthSubtitle { color: #77869a; font-size: 9pt; }
-QFrame#DemoHint {
-    background-color: #f3f6fa; border: 1px solid #e5eaf1; border-radius: 7px;
-}
-QLabel#DemoTitle { color: #516681; font-size: 8pt; font-weight: 600; }
-QLabel#DemoText { color: #68788e; font-size: 8pt; }
 QLabel#FormError { color: #b84650; font-weight: 500; }
 """
 
@@ -582,18 +576,6 @@ class LoginPage(QWidget):
         login_button.setMinimumHeight(42)
         login_layout.addWidget(login_button)
 
-        demo = QFrame()
-        demo.setObjectName("DemoHint")
-        demo_layout = QVBoxLayout(demo)
-        demo_layout.setContentsMargins(12, 10, 12, 10)
-        demo_layout.setSpacing(4)
-        demo_title = QLabel("ДЕМО-ДОСТУП")
-        demo_title.setObjectName("DemoTitle")
-        demo_text = QLabel("Организатор: admin / admin\nДемо-тренер: coach / coach")
-        demo_text.setObjectName("DemoText")
-        demo_layout.addWidget(demo_title)
-        demo_layout.addWidget(demo_text)
-        login_layout.addWidget(demo)
         login_layout.addStretch(1)
         tabs.addTab(login_tab, "Вход")
 
@@ -668,6 +650,95 @@ class LoginPage(QWidget):
         self.password_edit.clear()
 
 
+class FirstRunPage(QWidget):
+    """Первичная настройка: пользователь самостоятельно создаёт организатора."""
+
+    def __init__(self, app):
+        super().__init__()
+        self.app = app
+        root = QVBoxLayout(self)
+        root.setContentsMargins(28, 24, 28, 24)
+
+        panel = QFrame()
+        panel.setObjectName("AuthPanel")
+        panel.setMaximumWidth(580)
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(30, 30, 30, 30)
+        panel_layout.setSpacing(14)
+
+        title = QLabel("Первоначальная настройка")
+        title.setObjectName("AuthTitle")
+        subtitle = QLabel(
+            "Создай собственную учётную запись организатора. "
+            "Логин и пароль задаёшь самостоятельно."
+        )
+        subtitle.setObjectName("AuthSubtitle")
+        subtitle.setWordWrap(True)
+        panel_layout.addWidget(title)
+        panel_layout.addWidget(subtitle)
+
+        form = QFormLayout()
+        form.setHorizontalSpacing(14)
+        form.setVerticalSpacing(12)
+        self.full_name = QLineEdit()
+        self.full_name.setPlaceholderText("Фамилия Имя Отчество")
+        self.login = QLineEdit()
+        self.login.setPlaceholderText("Придумай логин")
+        self.password = QLineEdit()
+        self.password.setPlaceholderText("Не менее 8 символов")
+        self.password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.confirm_password = QLineEdit()
+        self.confirm_password.setPlaceholderText("Повтори пароль")
+        self.confirm_password.setEchoMode(QLineEdit.EchoMode.Password)
+        form.addRow("ФИО", self.full_name)
+        form.addRow("Логин", self.login)
+        form.addRow("Пароль", self.password)
+        form.addRow("Повтор пароля", self.confirm_password)
+        panel_layout.addLayout(form)
+
+        show_password = QCheckBox("Показать пароль")
+        show_password.toggled.connect(
+            lambda checked: (
+                self.password.setEchoMode(
+                    QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
+                ),
+                self.confirm_password.setEchoMode(
+                    QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
+                ),
+            )
+        )
+        panel_layout.addWidget(show_password)
+
+        self.error = QLabel("")
+        self.error.setObjectName("FormError")
+        self.error.setWordWrap(True)
+        panel_layout.addWidget(self.error)
+
+        create_button = make_button(
+            "Создать учётную запись и войти", self.create_account, "primary"
+        )
+        create_button.setMinimumHeight(44)
+        panel_layout.addWidget(create_button)
+        root.addStretch(1)
+        root.addWidget(panel, 0, Qt.AlignmentFlag.AlignHCenter)
+        root.addStretch(1)
+        self.full_name.setFocus()
+
+    def create_account(self):
+        password = self.password.text()
+        if password != self.confirm_password.text():
+            self.error.setText("Пароли не совпадают.")
+            return
+        try:
+            user_id = self.app.db.create_organizer(
+                self.login.text(), password, self.full_name.text()
+            )
+        except (ValidationError, sqlite3.Error) as exc:
+            self.error.setText(str(exc))
+            return
+        self.app.login_ok(self.app.db.get_user(user_id))
+
+
 class TournamentsTab(BaseTab):
     def __init__(self, app):
         super().__init__(app)
@@ -677,8 +748,7 @@ class TournamentsTab(BaseTab):
             make_button("Изменить", self.edit),
             make_button("Удалить", self.delete, "danger"),
             make_button("Сформировать сетку", self.generate),
-            make_button("Сбросить сетку", self.reset),
-            make_button("Загрузить демо-данные", self.demo)
+            make_button("Сбросить сетку", self.reset)
         )
         self.table = DataTable(
             ["Название", "Вид спорта", "Система", "Даты", "Место",
@@ -788,20 +858,6 @@ class TournamentsTab(BaseTab):
                    "Удалить сетку и расписание турнира и вернуться к приёму заявок?"):
             self.run(self.db.reset_bracket, tid, success="Сетка сброшена")
 
-    def demo(self):
-        try:
-            loaded = dbm.load_demo(self.db)
-        except (ValidationError, sqlite3.Error) as exc:
-            warn(self, "Демо-данные", str(exc))
-            return
-        if loaded:
-            self.app.refresh_all()
-            self.app.notify("Демо-данные загружены")
-            info(self, "Демо-данные",
-                 "Загружены 8 команд и 2 турнира.\nТренер для проверки: coach / coach.")
-        else:
-            info(self, "Демо-данные",
-                 "В базе уже есть команды — демо-данные загружаются только в пустую базу.")
 
 
 class ApplicationsTab(BaseTab):
@@ -870,65 +926,47 @@ class ApplicationsTab(BaseTab):
 
 
 class TeamsTab(BaseTab):
+    """Ручное ведение команд и составов без автозаполнения."""
+
     def __init__(self, app):
         super().__init__(app)
-        self.title(
-            "Команды и составы",
-            "Официальные составы ЛВЛ 2026–2027, статистические лидеры и капитаны команд."
-        )
+        self.title("Команды и составы", "Добавляй команды и заполняй составы игроков вручную.")
         self.toolbar(
-            make_button("Импортировать составы и аккаунты ЛВЛ 26–27", self.import_official, "primary")
+            make_button("Добавить команду", self.add_team, "primary"),
+            make_button("Изменить команду", self.edit_team),
+            make_button("Удалить команду", self.delete_team, "danger"),
         )
-        self.source_note = QLabel(
-            "Капитан в приложении назначается как демо-ответственный по статистике; "
-            "официальный капитан с сайта хранится отдельно."
-        )
-        self.source_note.setObjectName("Muted")
-        self.source_note.setWordWrap(True)
-        self.layout.addWidget(self.source_note)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self.teams = DataTable(
-            ["Команда", "Капитан (прил.)", "Место", "Очки", "Игроков"],
-            widths=[170, 150, 65, 65, 70]
+            ["Команда", "Город", "Капитан", "Игроков"],
+            widths=[190, 130, 180, 70],
         )
 
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(8)
-        self.selected_team_label = QLabel("Выберите команду")
+        right_layout.setSpacing(9)
+
+        self.selected_team_label = QLabel("Выбери команду слева")
         self.selected_team_label.setStyleSheet(
             "font-size: 12pt; font-weight: 600; color: #263449;"
         )
-        self.team_seasons_note = QLabel(
-            "Составы и статистика в этой вкладке ограничены сезоном ЛВЛ 2026–2027."
-        )
-        self.team_seasons_note.setObjectName("Muted")
-        self.team_seasons_note.setWordWrap(True)
-        self.standout_note = QLabel("")
-        self.standout_note.setObjectName("Muted")
-        self.standout_note.setWordWrap(True)
-        self.standout_note.setStyleSheet(
-            "background-color: #edf4ff; color: #31547f; "
-            "border-left: 3px solid #5b8fcf; padding: 7px 10px;"
-        )
         right_layout.addWidget(self.selected_team_label)
-        right_layout.addWidget(self.team_seasons_note)
-        right_layout.addWidget(self.standout_note)
 
-        self.official_roster = DataTable(
-            ["№", "Игрок", "Приём", "Блок", "Эйс", "Защита", "Ошибки"],
-            widths=[42, 175, 58, 58, 55, 68, 65]
-        )
-        self.local_players = DataTable(
+        player_toolbar = QHBoxLayout()
+        player_toolbar.addWidget(QLabel("Состав игроков"))
+        player_toolbar.addStretch(1)
+        player_toolbar.addWidget(make_button("Добавить игрока", self.add_player, "primary"))
+        player_toolbar.addWidget(make_button("Изменить", self.edit_player))
+        player_toolbar.addWidget(make_button("Удалить", self.delete_player, "danger"))
+        right_layout.addLayout(player_toolbar)
+
+        self.players = DataTable(
             ["№", "ФИО", "Амплуа", "Год рождения"],
-            widths=[50, 210, 150, 100]
+            widths=[55, 220, 170, 110],
         )
-        self.roster_tabs = QTabWidget()
-        self.roster_tabs.addTab(self.official_roster, "ЛВЛ 2026–2027")
-        self.roster_tabs.addTab(self.local_players, "Локальные карточки")
-        right_layout.addWidget(self.roster_tabs, 1)
+        right_layout.addWidget(self.players, 1)
 
         splitter.addWidget(self.teams)
         splitter.addWidget(right_panel)
@@ -936,131 +974,178 @@ class TeamsTab(BaseTab):
         splitter.setStretchFactor(1, 4)
         self.layout.addWidget(splitter, 1)
         self.teams.itemSelectionChanged.connect(self.show_players)
+        self.refresh()
 
-    def import_official(self):
-        try:
-            result = import_magadan_teams(self.db)
-        except (sqlite3.Error, OSError, ValueError) as exc:
-            warn(self, "Импорт ЛВЛ", str(exc))
-            return
-        self.app.refresh_all()
-        self.app.notify("Составы ЛВЛ 2026–2027 и аккаунты капитанов загружены")
+    def selected_team(self):
+        team_id = self.teams.selected_id()
+        if team_id is None:
+            info(self, "Команды", "Сначала выбери команду в списке.")
+            return None
+        return team_id
 
-        lines = [
-            "КОМАНДА — ВЫБРАННЫЙ КАПИТАН — ЛОГИН — ПАРОЛЬ",
-            "",
+    def add_team(self):
+        fields = [
+            {"key": "name", "label": "Название команды"},
+            {"key": "city", "label": "Город"},
+            {"key": "captain", "label": "Капитан"},
         ]
-        for account in result["captain_accounts"]:
-            password = account["password"] or "создан ранее"
-            lines.append(
-                f"{account['team']} — {account['full_name']} — "
-                f"{account['login']} — {password} — {account['reason']}"
+        if show_form(
+            self, "Новая команда", fields,
+            lambda v: self.db.create_team(v["name"], v["city"], v["captain"]),
+        ):
+            self.refresh()
+            self.app.notify("Команда добавлена")
+
+    def edit_team(self):
+        team_id = self.selected_team()
+        if team_id is None:
+            return
+        team = self.db.get_team(team_id)
+        fields = [
+            {"key": "name", "label": "Название команды"},
+            {"key": "city", "label": "Город"},
+            {"key": "captain", "label": "Капитан"},
+        ]
+        initial = {
+            "name": team["name"], "city": team["city"], "captain": team["captain"],
+        }
+        if show_form(
+            self, "Изменение команды", fields,
+            lambda v: self.db.update_team(team_id, v["name"], v["city"], v["captain"]),
+            initial,
+        ):
+            self.refresh()
+            self.app.notify("Данные команды обновлены")
+
+    def delete_team(self):
+        team_id = self.selected_team()
+        if team_id is None:
+            return
+        team = self.db.get_team(team_id)
+        if not confirm(
+            self, "Удаление команды",
+            f"Удалить команду «{team['name']}»? Её состав и заявки также будут удалены."
+        ):
+            return
+        try:
+            self.db.delete_team(team_id)
+        except (ValidationError, sqlite3.Error) as exc:
+            warn(self, "Удаление команды", str(exc))
+            return
+        self.refresh()
+        self.app.notify("Команда удалена")
+
+    def add_player(self):
+        team_id = self.selected_team()
+        if team_id is None:
+            return
+        fields = [
+            {"key": "full_name", "label": "ФИО игрока"},
+            {"key": "number", "label": "Игровой номер"},
+            {"key": "position", "label": "Амплуа", "kind": "combo",
+             "values": ["Не указано"] + POSITIONS},
+            {"key": "birth_year", "label": "Год рождения"},
+        ]
+
+        def submit(values):
+            position = "" if values["position"] == "Не указано" else values["position"]
+            self.db.add_player(
+                team_id, values["full_name"], values["number"],
+                position, values["birth_year"],
             )
-        lines.extend([
-            "",
-            f"Загружено игроков: {result['imported_roster']}.",
-            f"Создано новых аккаунтов: {sum(1 for a in result['captain_accounts'] if a['created'])}.",
-            "Роль локальных аккаунтов: тренер / капитан.",
-            "Все пароли при первом импорте установлены в 123123.",
-        ])
-        info(self, "Импорт завершён", "\n".join(lines))
+
+        if show_form(self, "Новый игрок", fields, submit, {"position": "Не указано"}):
+            self.refresh()
+            self.app.notify("Игрок добавлен")
+
+    def edit_player(self):
+        team_id = self.selected_team()
+        player_id = self.players.selected_id()
+        if team_id is None:
+            return
+        if player_id is None:
+            info(self, "Игроки", "Выбери игрока в составе.")
+            return
+        player = next(
+            (item for item in self.db.list_players(team_id) if item["id"] == player_id),
+            None,
+        )
+        if player is None:
+            info(self, "Игроки", "Игрок не найден.")
+            return
+        fields = [
+            {"key": "full_name", "label": "ФИО игрока"},
+            {"key": "number", "label": "Игровой номер"},
+            {"key": "position", "label": "Амплуа", "kind": "combo",
+             "values": ["Не указано"] + POSITIONS},
+            {"key": "birth_year", "label": "Год рождения"},
+        ]
+        initial = {
+            "full_name": player["full_name"], "number": player["number"],
+            "position": player["position"] or "Не указано",
+            "birth_year": player["birth_year"],
+        }
+
+        def submit(values):
+            position = "" if values["position"] == "Не указано" else values["position"]
+            self.db.update_player(
+                player_id, values["full_name"], values["number"],
+                position, values["birth_year"],
+            )
+
+        if show_form(self, "Изменение игрока", fields, submit, initial):
+            self.refresh()
+            self.app.notify("Карточка игрока обновлена")
+
+    def delete_player(self):
+        team_id = self.selected_team()
+        player_id = self.players.selected_id()
+        if team_id is None:
+            return
+        if player_id is None:
+            info(self, "Игроки", "Выбери игрока в составе.")
+            return
+        if confirm(self, "Удаление игрока", "Удалить выбранную карточку игрока?"):
+            self.db.delete_player(player_id)
+            self.refresh()
+            self.app.notify("Игрок удалён")
 
     def refresh(self):
-        teams = self.db.list_teams()
-        current = {
-            row["team_id"]: row
-            for row in self.db.list_team_season_stats("2026-2027")
-        }
-        roster_counts = {}
-        for player in self.db.list_official_roster("2026-2027"):
-            roster_counts[player["team_id"]] = roster_counts.get(player["team_id"], 0) + 1
         self.teams.fill([
             (
                 team["id"],
                 (
-                    team["name"], team["captain"] or "—",
-                    current[team["id"]]["place"] if team["id"] in current else "—",
-                    current[team["id"]]["points"] if team["id"] in current else "—",
-                    roster_counts.get(team["id"], 0),
+                    team["name"], team["city"] or "—",
+                    team["captain"] or "—", team["players_count"],
                 ),
                 [],
             )
-            for team in teams
+            for team in self.db.list_teams()
         ])
         self.show_players()
 
     def show_players(self):
         team_id = self.teams.selected_id()
-        official_rows = []
-        local_rows = []
         if team_id is None:
-            self.selected_team_label.setText("Выберите команду")
-            self.team_seasons_note.setText(
-                "Выберите команду слева, чтобы увидеть состав и статистику ЛВЛ 2026–2027."
-            )
-            self.standout_note.clear()
-        else:
-            team = self.db.get_team(team_id)
-            self.selected_team_label.setText(team["name"] if team else "Команда")
-            from website_import import STANDOUTS
-            standout = STANDOUTS.get(team["name"] if team else "")
-            if standout:
-                self.standout_note.setText(
-                    f"Выделяется по статистике: {standout[0]} — {standout[1]}"
-                )
-            else:
-                self.standout_note.clear()
-            history = self.db.list_team_season_stats(
-                season="2026-2027", team_id=team_id
-            )
-            if history:
-                item = history[0]
-                official_captain = self.db.get_official_team_captain(
-                    team_id, "2026-2027"
-                )
-                self.team_seasons_note.setText(
-                    f"Капитан в приложении: {team['captain'] or 'не назначен'} · "
-                    f"официальный капитан на сайте: {official_captain or 'не указан'}\n"
-                    f"место {item['place']} · {item['points']} очков · "
-                    f"матчей {item['matches_played']} · "
-                    f"победы/поражения {item['wins']}/{item['losses']}"
-                )
-            else:
-                official_captain = self.db.get_official_team_captain(
-                    team_id, "2026-2027"
-                )
-                self.team_seasons_note.setText(
-                    f"Капитан в приложении: {team['captain'] or 'не назначен'} · "
-                    f"официальный капитан на сайте: {official_captain or 'не указан'}\n"
-                    "Сезонная таблица пока не импортирована."
-                )
-            from website_import import STANDOUTS
-            standout_name = STANDOUTS.get(team["name"], (None, None, None))[0]
-            official_rows = [
+            self.selected_team_label.setText("Выбери команду слева")
+            self.players.fill([])
+            return
+        team = self.db.get_team(team_id)
+        self.selected_team_label.setText(
+            f"{team['name']} · {team['city'] or 'город не указан'} · "
+            f"Капитан: {team['captain'] or 'не назначен'}"
+        )
+        self.players.fill([
+            (
+                player["id"],
                 (
-                    row["id"],
-                    (
-                        row["jersey_number"], row["full_name"], row["reception"],
-                        row["blocks"], row["aces"], row["defense"], row["errors"],
-                    ),
-                    ["mine"] if row["full_name"] == standout_name else [],
-                )
-                for row in self.db.list_official_roster("2026-2027", team_id)
-            ]
-            local_rows = [
-                (
-                    player["id"],
-                    (
-                        player["number"], player["full_name"],
-                        player["position"], player["birth_year"],
-                    ),
-                    [],
-                )
-                for player in self.db.list_players(team_id)
-            ]
-        self.official_roster.fill(official_rows)
-        self.local_players.fill(local_rows)
-
+                    player["number"], player["full_name"],
+                    player["position"] or "—", player["birth_year"],
+                ),
+                [],
+            )
+            for player in self.db.list_players(team_id)
+        ])
 
 class MatchesTab(BaseTab):
     def __init__(self, app, readonly=False):
@@ -1931,7 +2016,10 @@ class MainWindow(QMainWindow):
         self.pages = {}
         self.nav_buttons = {}
         self.statusBar().hide()
-        self.setCentralWidget(LoginPage(self))
+        if self.db.has_organizer():
+            self.setCentralWidget(LoginPage(self))
+        else:
+            self.setCentralWidget(FirstRunPage(self))
 
     def login_ok(self, user):
         self.user = user
