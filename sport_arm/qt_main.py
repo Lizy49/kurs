@@ -906,8 +906,16 @@ class TeamsTab(BaseTab):
         )
         self.team_seasons_note.setObjectName("Muted")
         self.team_seasons_note.setWordWrap(True)
+        self.standout_note = QLabel("")
+        self.standout_note.setObjectName("Muted")
+        self.standout_note.setWordWrap(True)
+        self.standout_note.setStyleSheet(
+            "background-color: #edf4ff; color: #31547f; "
+            "border-left: 3px solid #5b8fcf; padding: 7px 10px;"
+        )
         right_layout.addWidget(self.selected_team_label)
         right_layout.addWidget(self.team_seasons_note)
+        right_layout.addWidget(self.standout_note)
 
         self.official_roster = DataTable(
             ["№", "Игрок", "Приём", "Блок", "Эйс", "Защита", "Ошибки"],
@@ -990,9 +998,18 @@ class TeamsTab(BaseTab):
             self.team_seasons_note.setText(
                 "Выберите команду слева, чтобы увидеть состав и статистику ЛВЛ 2026–2027."
             )
+            self.standout_note.clear()
         else:
             team = self.db.get_team(team_id)
             self.selected_team_label.setText(team["name"] if team else "Команда")
+            from website_import import STANDOUTS
+            standout = STANDOUTS.get(team["name"] if team else "")
+            if standout:
+                self.standout_note.setText(
+                    f"Выделяется по статистике: {standout[0]} — {standout[1]}"
+                )
+            else:
+                self.standout_note.clear()
             history = self.db.list_team_season_stats(
                 season="2026-2027", team_id=team_id
             )
