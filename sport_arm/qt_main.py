@@ -947,7 +947,7 @@ class TeamsTab(BaseTab):
         self.app.notify("Составы ЛВЛ 2026–2027 и аккаунты капитанов загружены")
 
         lines = [
-            "КОМАНДА — КАПИТАН — ЛОГИН — ПАРОЛЬ",
+            "КОМАНДА — ВЫБРАННЫЙ КАПИТАН — ЛОГИН — ПАРОЛЬ",
             "",
         ]
         for account in result["captain_accounts"]:
@@ -1020,7 +1020,7 @@ class TeamsTab(BaseTab):
                 )
                 self.team_seasons_note.setText(
                     f"Капитан в приложении: {team['captain'] or 'не назначен'} · "
-                    f"официальный капитан на сайте: {official_captain or 'не указан'}\\n"
+                    f"официальный капитан на сайте: {official_captain or 'не указан'}\n"
                     f"место {item['place']} · {item['points']} очков · "
                     f"матчей {item['matches_played']} · "
                     f"победы/поражения {item['wins']}/{item['losses']}"
@@ -1031,7 +1031,7 @@ class TeamsTab(BaseTab):
                 )
                 self.team_seasons_note.setText(
                     f"Капитан в приложении: {team['captain'] or 'не назначен'} · "
-                    f"официальный капитан на сайте: {official_captain or 'не указан'}\\n"
+                    f"официальный капитан на сайте: {official_captain or 'не указан'}\n"
                     "Сезонная таблица пока не импортирована."
                 )
             from website_import import STANDOUTS
