@@ -161,6 +161,25 @@ CREATE TABLE IF NOT EXISTS players(
     birth_year INTEGER NOT NULL,
     UNIQUE(team_id, number)
 );
+CREATE TABLE IF NOT EXISTS team_season_standings(
+    team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    league TEXT NOT NULL,
+    season TEXT NOT NULL,
+    place INTEGER NOT NULL,
+    points INTEGER NOT NULL DEFAULT 0,
+    matches_played INTEGER NOT NULL DEFAULT 0,
+    wins INTEGER NOT NULL DEFAULT 0,
+    losses INTEGER NOT NULL DEFAULT 0,
+    points_scored INTEGER NOT NULL DEFAULT 0,
+    points_conceded INTEGER NOT NULL DEFAULT 0,
+    points_ratio REAL NOT NULL DEFAULT 0,
+    sets_won INTEGER NOT NULL DEFAULT 0,
+    sets_lost INTEGER NOT NULL DEFAULT 0,
+    sets_ratio REAL NOT NULL DEFAULT 0,
+    source_url TEXT NOT NULL DEFAULT '',
+    imported_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY(team_id, season)
+);
 CREATE TABLE IF NOT EXISTS tournaments(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE COLLATE RUNOCASE,
@@ -264,6 +283,22 @@ class Database:
         return self.conn.execute(
             "SELECT t.*, (SELECT COUNT(*) FROM players p WHERE p.team_id=t.id) AS players_count "
             "FROM teams t ORDER BY t.name").fetchall()
+
+    def list_team_season_stats(self, season=None, team_id=None):
+        """Сезонная статистика команд, загруженная из таблиц лиги."""
+        clauses = []
+        params = []
+        if season:
+            clauses.append("season=?")
+            params.append(season)
+        if team_id is not None:
+            clauses.append("team_id=?")
+            params.append(team_id)
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        return self.conn.execute(
+            "SELECT * FROM team_season_standings" + where +
+            " ORDER BY season DESC, place ASC", params
+        ).fetchall()
 
     def get_team(self, team_id):
         return self.conn.execute(
