@@ -36,14 +36,16 @@ SYSTEM_BY_LABEL = {value: key for key, value in SYSTEM_NAMES.items()}
 
 APP_STYLE = """
 QWidget {
-    background: #f4f6fb;
-    color: #182338;
+    background: #f4f7fc;
+    color: #19263b;
     font-family: "Segoe UI", "Arial";
     font-size: 10pt;
 }
-QMainWindow { background: #f4f6fb; }
+QMainWindow { background: #f4f7fc; }
+QDialog { background: #f7f9fd; }
 QFrame#Sidebar {
-    background: #111b2e;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                stop:0 #111d32, stop:1 #172944);
     border: none;
 }
 QLabel#SidebarBrand {
@@ -52,71 +54,78 @@ QLabel#SidebarBrand {
     font-weight: 800;
 }
 QLabel#SidebarSub {
-    color: #8fa1bb;
-    font-size: 9pt;
+    color: #8fa4c2;
+    font-size: 8pt;
+    letter-spacing: 1px;
 }
 QLabel#SidebarSection {
-    color: #71829d;
+    color: #7187a8;
     font-size: 8pt;
     font-weight: 800;
-    padding: 14px 10px 5px 10px;
+    padding: 15px 10px 6px 10px;
+    letter-spacing: 1px;
 }
 QPushButton#NavButton {
     background: transparent;
-    color: #c4cede;
+    color: #bdcbe0;
     text-align: left;
-    border: none;
-    border-radius: 8px;
+    border: 1px solid transparent;
+    border-radius: 9px;
     padding: 11px 13px;
+    margin: 1px 0;
     font-weight: 600;
 }
 QPushButton#NavButton:hover {
-    background: #1c2a42;
+    background: #223653;
     color: #ffffff;
 }
 QPushButton#NavActive {
-    background: #253b5d;
+    background: #263f62;
     color: #ffffff;
     text-align: left;
-    border: none;
-    border-left: 3px solid #60a5fa;
-    border-radius: 8px;
-    padding: 11px 13px;
+    border: 1px solid #35537c;
+    border-left: 4px solid #65a5ff;
+    border-radius: 9px;
+    padding: 11px 10px;
+    margin: 1px 0;
     font-weight: 700;
 }
 QFrame#ProfileCard {
-    background: #1a2941;
-    border: 1px solid #2a3b57;
-    border-radius: 10px;
+    background: #1b2c46;
+    border: 1px solid #2b4263;
+    border-radius: 13px;
 }
-QLabel#ProfileName { color: white; font-weight: 700; }
-QLabel#ProfileRole { color: #9fb0c8; font-size: 8pt; }
-QFrame#Workspace { background: #f4f6fb; border: none; }
+QLabel#ProfileName { color: #ffffff; font-weight: 700; }
+QLabel#ProfileRole { color: #a7b8d0; font-size: 8pt; }
+QFrame#Workspace { background: #f4f7fc; border: none; }
 QFrame#Topbar {
     background: #ffffff;
     border: none;
-    border-bottom: 1px solid #e6ebf2;
+    border-bottom: 1px solid #e7edf5;
 }
 QLabel#PageTitle {
-    color: #17243a;
-    font-size: 19pt;
-    font-weight: 750;
-}
-QLabel#PageSubtitle { color: #728097; font-size: 9pt; }
-QLabel#Muted { color: #718097; }
-QFrame#Surface, QFrame#MetricCard, QGroupBox {
-    background: #ffffff;
-    border: 1px solid #e5eaf2;
-    border-radius: 13px;
-}
-QFrame#MetricCard { min-height: 108px; }
-QLabel#MetricValue {
-    color: #15233a;
-    font-size: 23pt;
+    color: #15243b;
+    font-size: 20pt;
     font-weight: 800;
 }
-QLabel#MetricTitle { color: #64748b; font-size: 9pt; font-weight: 600; }
-QLabel#MetricHint { color: #94a3b8; font-size: 8pt; }
+QLabel#PageSubtitle { color: #73839b; font-size: 9pt; }
+QLabel#Muted { color: #718198; }
+QFrame#Surface, QFrame#MetricCard, QGroupBox {
+    background: #ffffff;
+    border: 1px solid #e5ebf3;
+    border-radius: 15px;
+}
+QFrame#MetricCard {
+    min-height: 112px;
+    border-top: 3px solid #3b82f6;
+}
+QLabel#MetricValue {
+    color: #172943;
+    font-size: 25pt;
+    font-weight: 800;
+}
+QLabel#MetricTitle { color: #52647e; font-size: 9pt; font-weight: 700; }
+QLabel#MetricHint { color: #91a0b4; font-size: 8pt; }
 QGroupBox {
     margin-top: 12px;
     padding: 14px 10px 10px 10px;
@@ -130,80 +139,191 @@ QGroupBox::title {
     color: #475569;
 }
 QPushButton {
-    background: #e9eef6;
-    color: #26364f;
-    border: 1px solid #e0e7f0;
-    border-radius: 8px;
-    padding: 9px 14px;
+    background: #ffffff;
+    color: #30425e;
+    border: 1px solid #dfe7f1;
+    border-radius: 9px;
+    padding: 9px 15px;
+    min-height: 20px;
     font-weight: 600;
 }
-QPushButton:hover { background: #dfe7f2; }
-QPushButton:pressed { background: #d2deed; }
+QPushButton:hover {
+    background: #f0f5fc;
+    border-color: #c8d8ee;
+}
+QPushButton:pressed { background: #e5eefb; }
+QPushButton:disabled {
+    background: #f1f4f8;
+    color: #a3adbb;
+    border-color: #e6eaf0;
+}
 QPushButton#Primary {
-    background: #2563eb;
+    background: #2864e8;
     color: #ffffff;
-    border: 1px solid #2563eb;
+    border: 1px solid #2864e8;
+    font-weight: 700;
 }
-QPushButton#Primary:hover { background: #1d4ed8; }
+QPushButton#Primary:hover {
+    background: #1d55d0;
+    border-color: #1d55d0;
+}
+QPushButton#Primary:pressed { background: #1949b5; }
 QPushButton#Danger {
-    background: #fff1f2;
-    color: #be123c;
-    border: 1px solid #ffe4e6;
+    background: #fff5f5;
+    color: #c24152;
+    border: 1px solid #f5d9dc;
 }
-QPushButton#Danger:hover { background: #ffe4e6; }
+QPushButton#Danger:hover { background: #ffe9eb; }
 QLineEdit, QComboBox {
     background: #ffffff;
-    border: 1px solid #dbe3ee;
-    border-radius: 8px;
-    padding: 9px 10px;
-    selection-background-color: #2563eb;
+    color: #1e2d45;
+    border: 1px solid #d9e2ef;
+    border-radius: 9px;
+    padding: 10px 12px;
+    min-height: 22px;
+    selection-background-color: #2864e8;
 }
-QLineEdit:focus, QComboBox:focus { border: 1px solid #60a5fa; }
+QLineEdit:hover, QComboBox:hover { border-color: #b7c9e2; }
+QLineEdit:focus, QComboBox:focus {
+    border: 1px solid #4b8df5;
+    background: #ffffff;
+}
+QLineEdit::placeholder { color: #a4afbf; }
 QTabWidget::pane {
     background: #ffffff;
-    border: 1px solid #e1e8f1;
-    border-radius: 10px;
+    border: 1px solid #e4eaf3;
+    border-radius: 11px;
     top: -1px;
 }
 QTabBar::tab {
-    background: #e8edf5;
-    color: #526078;
-    padding: 10px 16px;
-    margin-right: 4px;
-    border-top-left-radius: 7px;
-    border-top-right-radius: 7px;
-    font-weight: 600;
+    background: #f0f4fa;
+    color: #64748b;
+    padding: 11px 19px;
+    margin-right: 5px;
+    border: 1px solid #e7edf5;
+    border-bottom: none;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    font-weight: 700;
 }
-QTabBar::tab:selected { background: #ffffff; color: #1d4ed8; }
+QTabBar::tab:selected {
+    background: #ffffff;
+    color: #245fdf;
+    border-color: #dce6f3;
+}
+QTabBar::tab:hover:!selected { background: #e8eff9; }
 QTableWidget {
     background: #ffffff;
     alternate-background-color: #f8fafd;
-    border: 1px solid #e6ebf2;
-    border-radius: 9px;
+    border: 1px solid #e5ebf3;
+    border-radius: 11px;
     gridline-color: transparent;
-    selection-background-color: #e5efff;
-    selection-color: #172033;
+    selection-background-color: #e7f0ff;
+    selection-color: #172943;
+    outline: none;
 }
 QHeaderView::section {
-    background: #f0f4f9;
-    color: #53627a;
-    padding: 11px 8px;
+    background: #f2f6fb;
+    color: #596b84;
+    padding: 12px 9px;
     border: none;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid #e3eaf3;
     font-weight: 700;
 }
-QTableWidget::item { padding: 7px; border: none; }
-QCheckBox, QRadioButton { spacing: 7px; }
-QGraphicsView {
-    background: #ffffff;
-    border: 1px solid #e5eaf2;
-    border-radius: 10px;
+QTableWidget::item { padding: 8px; border: none; }
+QCheckBox, QRadioButton { spacing: 8px; color: #53647c; }
+QCheckBox::indicator {
+    width: 17px;
+    height: 17px;
+}
+QScrollArea { border: none; background: transparent; }
+QScrollBar:vertical {
+    background: transparent;
+    width: 10px;
+    margin: 2px;
+}
+QScrollBar::handle:vertical {
+    background: #cbd6e4;
+    min-height: 28px;
+    border-radius: 5px;
+}
+QScrollBar::handle:vertical:hover { background: #aebed2; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: transparent;
+    border: none;
 }
 QStatusBar {
     background: #ffffff;
-    color: #68778e;
-    border-top: 1px solid #e6ebf2;
+    color: #687a93;
+    border-top: 1px solid #e6ecf4;
+    padding-left: 8px;
 }
+QToolTip {
+    background: #172943;
+    color: #ffffff;
+    border: 1px solid #2d4669;
+    padding: 6px 9px;
+}
+QFrame#AuthShell {
+    background: #ffffff;
+    border: 1px solid #e3eaf3;
+    border-radius: 22px;
+}
+QFrame#AuthHero {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                stop:0 #14233d, stop:0.55 #1a3761, stop:1 #24518b);
+    border: none;
+    border-radius: 18px;
+}
+QLabel#AuthEyebrow {
+    color: #a9c8f4;
+    font-size: 8pt;
+    font-weight: 800;
+    letter-spacing: 2px;
+}
+QLabel#AuthHeroTitle {
+    color: #ffffff;
+    font-size: 28pt;
+    font-weight: 800;
+}
+QLabel#AuthHeroText {
+    color: #c1d2e9;
+    font-size: 10pt;
+}
+QFrame#AuthFeature {
+    background: #2b4467;
+    border: 1px solid #3e5d85;
+    border-radius: 11px;
+}
+QLabel#AuthFeatureIcon {
+    background: #2c67b2;
+    color: #ffffff;
+    border-radius: 9px;
+    font-size: 12pt;
+    font-weight: 800;
+}
+QLabel#AuthFeatureTitle { color: #ffffff; font-weight: 700; }
+QLabel#AuthFeatureText { color: #afc3dc; font-size: 8pt; }
+QFrame#AuthPanel { background: #ffffff; border: none; }
+QLabel#AuthTitle {
+    color: #172943;
+    font-size: 21pt;
+    font-weight: 800;
+}
+QLabel#AuthSubtitle { color: #7c8ba1; font-size: 9pt; }
+QFrame#DemoHint {
+    background: #f4f8ff;
+    border: 1px solid #e1ebfb;
+    border-radius: 10px;
+}
+QLabel#DemoTitle {
+    color: #315b91;
+    font-size: 8pt;
+    font-weight: 800;
+}
+QLabel#DemoText { color: #647a98; font-size: 8pt; }
+QLabel#FormError { color: #c24152; font-weight: 600; }
 """
 
 
@@ -469,77 +589,245 @@ class BaseTab(QWidget):
 
 
 class LoginPage(QWidget):
+    """Экран авторизации и регистрации тренеров."""
+
     def __init__(self, app):
         super().__init__()
         self.app = app
+
         root = QVBoxLayout(self)
-        root.setContentsMargins(30, 30, 30, 30)
-        root.addStretch(1)
+        root.setContentsMargins(24, 24, 24, 24)
+        root.setSpacing(0)
 
-        card = QFrame()
-        card.setObjectName("Surface")
-        card.setMaximumWidth(570)
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(30, 28, 30, 28)
-        card_layout.setSpacing(14)
+        shell = QFrame()
+        shell.setObjectName("AuthShell")
+        shell_layout = QHBoxLayout(shell)
+        shell_layout.setContentsMargins(14, 14, 14, 14)
+        shell_layout.setSpacing(16)
 
-        brand = QLabel("Спортивный организатор")
-        brand.setObjectName("PageTitle")
-        brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        card_layout.addWidget(brand)
-        subtitle = QLabel("Автоматизированное рабочее место")
-        subtitle.setObjectName("Muted")
-        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        card_layout.addWidget(subtitle)
+        # Левая информационная панель
+        hero = QFrame()
+        hero.setObjectName("AuthHero")
+        hero.setMinimumWidth(370)
+        hero.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+        hero_layout = QVBoxLayout(hero)
+        hero_layout.setContentsMargins(38, 36, 38, 32)
+        hero_layout.setSpacing(17)
+
+        brand_row = QHBoxLayout()
+        mark = QLabel("SO")
+        mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        mark.setFixedSize(46, 46)
+        mark.setStyleSheet(
+            "background: #3478d4; color: white; border-radius: 13px; "
+            "font-size: 15pt; font-weight: 800;"
+        )
+        brand_name = QLabel("SPORT ARM")
+        brand_name.setStyleSheet(
+            "color: white; font-size: 15pt; font-weight: 800; letter-spacing: 1px;"
+        )
+        brand_row.addWidget(mark)
+        brand_row.addSpacing(12)
+        brand_row.addWidget(brand_name)
+        brand_row.addStretch(1)
+        hero_layout.addLayout(brand_row)
+        hero_layout.addSpacing(26)
+
+        eyebrow = QLabel("ЕДИНАЯ ПЛАТФОРМА СОРЕВНОВАНИЙ")
+        eyebrow.setObjectName("AuthEyebrow")
+        hero_layout.addWidget(eyebrow)
+
+        hero_title = QLabel("Спорт начинается\nс хорошей организации.")
+        hero_title.setObjectName("AuthHeroTitle")
+        hero_title.setWordWrap(True)
+        hero_layout.addWidget(hero_title)
+
+        hero_text = QLabel(
+            "Планируйте турниры, принимайте заявки, управляйте командами "
+            "и следите за результатами в одном рабочем пространстве."
+        )
+        hero_text.setObjectName("AuthHeroText")
+        hero_text.setWordWrap(True)
+        hero_layout.addWidget(hero_text)
+        hero_layout.addSpacing(12)
+
+        features = [
+            ("01", "Турниры под контролем", "Сетки, расписание и результаты матчей"),
+            ("02", "Команды и заявки", "Составы, регистрация и допуск участников"),
+            ("03", "Статистика и отчёты", "Таблицы, рейтинг и экспорт в Excel")
+        ]
+        for number, title, description in features:
+            feature = QFrame()
+            feature.setObjectName("AuthFeature")
+            feature_layout = QHBoxLayout(feature)
+            feature_layout.setContentsMargins(12, 10, 12, 10)
+            feature_layout.setSpacing(12)
+            icon = QLabel(number)
+            icon.setObjectName("AuthFeatureIcon")
+            icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            icon.setFixedSize(38, 38)
+            copy = QVBoxLayout()
+            copy.setSpacing(3)
+            title_label = QLabel(title)
+            title_label.setObjectName("AuthFeatureTitle")
+            description_label = QLabel(description)
+            description_label.setObjectName("AuthFeatureText")
+            description_label.setWordWrap(True)
+            copy.addWidget(title_label)
+            copy.addWidget(description_label)
+            feature_layout.addWidget(icon)
+            feature_layout.addLayout(copy, 1)
+            hero_layout.addWidget(feature)
+
+        hero_layout.addStretch(1)
+        hero_footer = QLabel("ОДНА СИСТЕМА  •  ДВА РЕЖИМА РАБОТЫ  •  ПОЛНЫЙ КОНТРОЛЬ")
+        hero_footer.setStyleSheet(
+            "color: #a9c8f4; font-size: 8pt; font-weight: 700; letter-spacing: 1px;"
+        )
+        hero_footer.setWordWrap(True)
+        hero_layout.addWidget(hero_footer)
+
+        # Правая панель авторизации
+        panel = QFrame()
+        panel.setObjectName("AuthPanel")
+        panel.setMinimumWidth(420)
+        panel.setMaximumWidth(520)
+        panel.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+        )
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(28, 30, 28, 28)
+        panel_layout.setSpacing(12)
+
+        title = QLabel("Добро пожаловать")
+        title.setObjectName("AuthTitle")
+        subtitle = QLabel("Войдите в систему или создайте аккаунт тренера.")
+        subtitle.setObjectName("AuthSubtitle")
+        subtitle.setWordWrap(True)
+        panel_layout.addWidget(title)
+        panel_layout.addWidget(subtitle)
+        panel_layout.addSpacing(8)
 
         tabs = QTabWidget()
+        tabs.setDocumentMode(True)
+        tabs.setMovable(False)
+
+        # Вкладка входа
         login_tab = QWidget()
         login_layout = QVBoxLayout(login_tab)
+        login_layout.setContentsMargins(8, 16, 8, 12)
+        login_layout.setSpacing(12)
+
         login_form = QFormLayout()
+        login_form.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
+        )
+        login_form.setLabelAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        login_form.setHorizontalSpacing(14)
+        login_form.setVerticalSpacing(13)
+
         self.login_edit = QLineEdit()
+        self.login_edit.setPlaceholderText("Введите логин")
+        self.login_edit.setClearButtonEnabled(True)
         self.password_edit = QLineEdit()
+        self.password_edit.setPlaceholderText("Введите пароль")
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_edit.returnPressed.connect(self.do_login)
         login_form.addRow("Логин", self.login_edit)
         login_form.addRow("Пароль", self.password_edit)
         login_layout.addLayout(login_form)
+
+        show_password = QCheckBox("Показать пароль")
+        show_password.toggled.connect(
+            lambda checked: self.password_edit.setEchoMode(
+                QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
+            )
+        )
+        login_layout.addWidget(show_password)
+
         self.login_error = QLabel("")
-        self.login_error.setStyleSheet("color: #b91c1c;")
+        self.login_error.setObjectName("FormError")
+        self.login_error.setWordWrap(True)
+        self.login_error.setMinimumHeight(22)
         login_layout.addWidget(self.login_error)
-        login_layout.addWidget(make_button("Войти", self.do_login, "primary"))
-        tip = QLabel("Организатор: admin / admin\nДемо-тренер: coach / coach")
-        tip.setObjectName("Muted")
-        tip.setWordWrap(True)
-        login_layout.addWidget(tip)
+
+        login_button = make_button("Войти в систему", self.do_login, "primary")
+        login_button.setMinimumHeight(46)
+        login_layout.addWidget(login_button)
+
+        demo = QFrame()
+        demo.setObjectName("DemoHint")
+        demo_layout = QVBoxLayout(demo)
+        demo_layout.setContentsMargins(14, 11, 14, 11)
+        demo_layout.setSpacing(5)
+        demo_title = QLabel("ДЕМО-ДОСТУП")
+        demo_title.setObjectName("DemoTitle")
+        demo_text = QLabel(
+            "Организатор:  admin / admin\nДемо-тренер:  coach / coach"
+        )
+        demo_text.setObjectName("DemoText")
+        demo_text.setWordWrap(True)
+        demo_layout.addWidget(demo_title)
+        demo_layout.addWidget(demo_text)
+        login_layout.addWidget(demo)
+        login_layout.addStretch(1)
         tabs.addTab(login_tab, "Вход")
 
+        # Вкладка регистрации
         register_tab = QWidget()
         register_layout = QVBoxLayout(register_tab)
-        reg_form = QFormLayout()
+        register_layout.setContentsMargins(8, 16, 8, 12)
+        register_layout.setSpacing(12)
+        register_form = QFormLayout()
+        register_form.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
+        )
+        register_form.setHorizontalSpacing(14)
+        register_form.setVerticalSpacing(10)
+
         self.reg_login = QLineEdit()
+        self.reg_login.setPlaceholderText("Придумайте логин")
         self.reg_password = QLineEdit()
+        self.reg_password.setPlaceholderText("Не менее 4 символов")
         self.reg_password.setEchoMode(QLineEdit.EchoMode.Password)
         self.reg_name = QLineEdit()
+        self.reg_name.setPlaceholderText("Фамилия Имя Отчество")
         self.reg_team = QLineEdit()
+        self.reg_team.setPlaceholderText("Название команды")
         self.reg_city = QLineEdit()
-        reg_form.addRow("Логин", self.reg_login)
-        reg_form.addRow("Пароль", self.reg_password)
-        reg_form.addRow("ФИО тренера / капитана", self.reg_name)
-        reg_form.addRow("Название команды", self.reg_team)
-        reg_form.addRow("Город", self.reg_city)
-        register_layout.addLayout(reg_form)
-        register_layout.addWidget(make_button(
-            "Зарегистрироваться", self.do_register, "primary"
-        ))
-        tabs.addTab(register_tab, "Регистрация тренера")
-        card_layout.addWidget(tabs)
+        self.reg_city.setPlaceholderText("Город команды")
+        register_form.addRow("Логин", self.reg_login)
+        register_form.addRow("Пароль", self.reg_password)
+        register_form.addRow("ФИО тренера", self.reg_name)
+        register_form.addRow("Команда", self.reg_team)
+        register_form.addRow("Город", self.reg_city)
+        register_layout.addLayout(register_form)
 
-        centered = QHBoxLayout()
-        centered.addStretch(1)
-        centered.addWidget(card)
-        centered.addStretch(1)
-        root.addLayout(centered)
-        root.addStretch(1)
+        register_note = QLabel(
+            "После регистрации вы сможете управлять составом команды "
+            "и подавать заявки на открытые турниры."
+        )
+        register_note.setObjectName("AuthSubtitle")
+        register_note.setWordWrap(True)
+        register_layout.addWidget(register_note)
+
+        register_button = make_button(
+            "Создать аккаунт тренера", self.do_register, "primary"
+        )
+        register_button.setMinimumHeight(46)
+        register_layout.addWidget(register_button)
+        register_layout.addStretch(1)
+        tabs.addTab(register_tab, "Регистрация тренера")
+
+        panel_layout.addWidget(tabs, 1)
+        shell_layout.addWidget(hero, 1)
+        shell_layout.addWidget(panel, 0)
+        root.addWidget(shell, 1)
+
         self.login_edit.setFocus()
 
     def do_login(self):
@@ -547,7 +835,7 @@ class LoginPage(QWidget):
             self.login_edit.text().strip(), self.password_edit.text()
         )
         if user is None:
-            self.login_error.setText("Неверный логин или пароль.")
+            self.login_error.setText("Неверный логин или пароль. Проверьте данные и повторите попытку.")
             return
         self.login_error.setText("")
         self.app.login_ok(user)
@@ -1736,13 +2024,29 @@ class MainWindow(QMainWindow):
         brand_row.addWidget(brand_mark)
         brand_row.addLayout(brand_text, 1)
         sidebar_layout.addLayout(brand_row)
-        sidebar_layout.addSpacing(22)
+        sidebar_layout.addSpacing(16)
 
-        self._add_sidebar_heading(sidebar_layout, "ОБЗОР")
-        self._add_nav_button(sidebar_layout, "Главная", DashboardTab(self))
+        # Навигация прокручивается отдельно: профиль и выход всегда остаются видимыми.
+        nav_scroll = QScrollArea()
+        nav_scroll.setWidgetResizable(True)
+        nav_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        nav_scroll.setStyleSheet("background: transparent;")
+        nav_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        nav_content = QWidget()
+        nav_content.setStyleSheet("background: transparent;")
+        nav_layout = QVBoxLayout(nav_content)
+        nav_layout.setContentsMargins(0, 0, 3, 0)
+        nav_layout.setSpacing(3)
+        nav_scroll.setWidget(nav_content)
+        sidebar_layout.addWidget(nav_scroll, 1)
+
+        self._add_sidebar_heading(nav_layout, "ОБЗОР")
+        self._add_nav_button(nav_layout, "Главная", DashboardTab(self))
 
         if self.user["role"] == ROLE_ORG:
-            self._add_sidebar_heading(sidebar_layout, "УПРАВЛЕНИЕ")
+            self._add_sidebar_heading(nav_layout, "УПРАВЛЕНИЕ")
             for title, factory in [
                 ("Турниры", TournamentsTab),
                 ("Заявки", ApplicationsTab),
@@ -1750,29 +2054,29 @@ class MainWindow(QMainWindow):
                 ("Матчи и расписание", MatchesTab),
                 ("Сетка", BracketTab)
             ]:
-                self._add_nav_button(sidebar_layout, title, factory(self))
+                self._add_nav_button(nav_layout, title, factory(self))
 
-            self._add_sidebar_heading(sidebar_layout, "АНАЛИТИКА И ОТЧЁТЫ")
+            self._add_sidebar_heading(nav_layout, "АНАЛИТИКА И ОТЧЁТЫ")
             for title, factory in [
                 ("Таблица", StatsTab),
                 ("Рейтинг", RatingTab),
                 ("Экспорт", ExportTab)
             ]:
-                self._add_nav_button(sidebar_layout, title, factory(self))
+                self._add_nav_button(nav_layout, title, factory(self))
         else:
-            self._add_sidebar_heading(sidebar_layout, "МОЯ КОМАНДА")
-            self._add_nav_button(sidebar_layout, "Моя команда", MyTeamTab(self))
-            self._add_nav_button(sidebar_layout, "Заявки на турниры", MyApplicationsTab(self))
-            self._add_sidebar_heading(sidebar_layout, "СОРЕВНОВАНИЯ")
+            self._add_sidebar_heading(nav_layout, "МОЯ КОМАНДА")
+            self._add_nav_button(nav_layout, "Моя команда", MyTeamTab(self))
+            self._add_nav_button(nav_layout, "Заявки на турниры", MyApplicationsTab(self))
+            self._add_sidebar_heading(nav_layout, "СОРЕВНОВАНИЯ")
             self._add_nav_button(
                 sidebar_layout, "Расписание", MatchesTab(self, readonly=True)
             )
-            self._add_nav_button(sidebar_layout, "Сетка", BracketTab(self))
-            self._add_nav_button(sidebar_layout, "Таблица", StatsTab(self))
-            self._add_nav_button(sidebar_layout, "Моя статистика", MyStatsTab(self))
-            self._add_nav_button(sidebar_layout, "Рейтинг", RatingTab(self))
+            self._add_nav_button(nav_layout, "Сетка", BracketTab(self))
+            self._add_nav_button(nav_layout, "Таблица", StatsTab(self))
+            self._add_nav_button(nav_layout, "Моя статистика", MyStatsTab(self))
+            self._add_nav_button(nav_layout, "Рейтинг", RatingTab(self))
 
-        sidebar_layout.addStretch(1)
+        nav_layout.addStretch(1)
 
         profile = QFrame()
         profile.setObjectName("ProfileCard")
