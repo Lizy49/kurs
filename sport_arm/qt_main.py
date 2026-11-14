@@ -874,14 +874,14 @@ class TeamsTab(BaseTab):
         super().__init__(app)
         self.title(
             "Команды и составы",
-            "Официальные составы и статистика игроков ЛВЛ 2026–2027, капитаны и локальные карточки игроков."
+            "Официальные составы ЛВЛ 2026–2027, статистические лидеры и капитаны команд."
         )
         self.toolbar(
             make_button("Импортировать составы и аккаунты ЛВЛ 26–27", self.import_official, "primary")
         )
         self.source_note = QLabel(
-            "Источник: страницы 11 команд volleyball-mgdn.ru · сезон 2026–2027 · "
-            "статистика: приём, блок, эйс, защита и ошибки."
+            "Капитан в приложении назначается как демо-ответственный по статистике; "
+            "официальный капитан с сайта хранится отдельно."
         )
         self.source_note.setObjectName("Muted")
         self.source_note.setWordWrap(True)
@@ -889,7 +889,7 @@ class TeamsTab(BaseTab):
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self.teams = DataTable(
-            ["Команда", "Капитан", "Место", "Очки", "Игроков"],
+            ["Команда", "Капитан (прил.)", "Место", "Очки", "Игроков"],
             widths=[170, 150, 65, 65, 70]
         )
 
@@ -954,7 +954,7 @@ class TeamsTab(BaseTab):
             password = account["password"] or "создан ранее"
             lines.append(
                 f"{account['team']} — {account['full_name']} — "
-                f"{account['login']} — {password}"
+                f"{account['login']} — {password} — {account['reason']}"
             )
         lines.extend([
             "",
@@ -1015,17 +1015,27 @@ class TeamsTab(BaseTab):
             )
             if history:
                 item = history[0]
+                official_captain = self.db.get_official_team_captain(
+                    team_id, "2026-2027"
+                )
                 self.team_seasons_note.setText(
-                    f"Капитан: {team['captain'] or 'не указан'} · "
+                    f"Капитан в приложении: {team['captain'] or 'не назначен'} · "
+                    f"официальный капитан на сайте: {official_captain or 'не указан'}\\n"
                     f"место {item['place']} · {item['points']} очков · "
                     f"матчей {item['matches_played']} · "
                     f"победы/поражения {item['wins']}/{item['losses']}"
                 )
             else:
-                self.team_seasons_note.setText(
-                    f"Капитан: {team['captain'] or 'не указан'} · "
-                    "сезонная таблица пока не импортирована."
+                official_captain = self.db.get_official_team_captain(
+                    team_id, "2026-2027"
                 )
+                self.team_seasons_note.setText(
+                    f"Капитан в приложении: {team['captain'] or 'не назначен'} · "
+                    f"официальный капитан на сайте: {official_captain or 'не указан'}\\n"
+                    "Сезонная таблица пока не импортирована."
+                )
+            from website_import import STANDOUTS
+            standout_name = STANDOUTS.get(team["name"], (None, None, None))[0]
             official_rows = [
                 (
                     row["id"],
@@ -1033,7 +1043,7 @@ class TeamsTab(BaseTab):
                         row["jersey_number"], row["full_name"], row["reception"],
                         row["blocks"], row["aces"], row["defense"], row["errors"],
                     ),
-                    [],
+                    ["mine"] if row["full_name"] == standout_name else [],
                 )
                 for row in self.db.list_official_roster("2026-2027", team_id)
             ]
