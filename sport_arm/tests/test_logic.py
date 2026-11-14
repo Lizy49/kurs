@@ -495,7 +495,7 @@ class OfficialLeagueImportTests(unittest.TestCase):
             self.assertEqual(team["captain"], standout)
             self.assertEqual(
                 db.get_official_team_captain(team["id"], CURRENT_SEASON),
-                OFFICIAL_CAPTAINS[team_name],
+                OFFICIAL_CAPTAINS[team_name][0],
             )
             user = db.login(expected_login, DEFAULT_PASSWORD)
             self.assertIsNotNone(user, team_name)
