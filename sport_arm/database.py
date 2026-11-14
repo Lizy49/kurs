@@ -180,6 +180,31 @@ CREATE TABLE IF NOT EXISTS team_season_standings(
     imported_at TEXT NOT NULL DEFAULT '',
     PRIMARY KEY(team_id, season)
 );
+CREATE TABLE IF NOT EXISTS official_team_roster(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    season TEXT NOT NULL,
+    jersey_number INTEGER NOT NULL,
+    full_name TEXT NOT NULL,
+    reception INTEGER NOT NULL DEFAULT 0,
+    blocks INTEGER NOT NULL DEFAULT 0,
+    aces INTEGER NOT NULL DEFAULT 0,
+    defense INTEGER NOT NULL DEFAULT 0,
+    errors INTEGER NOT NULL DEFAULT 0,
+    source_url TEXT NOT NULL DEFAULT '',
+    imported_at TEXT NOT NULL DEFAULT '',
+    UNIQUE(team_id, season, full_name)
+);
+CREATE INDEX IF NOT EXISTS idx_official_roster_team_season
+    ON official_team_roster(team_id, season);
+CREATE TABLE IF NOT EXISTS official_team_accounts(
+    team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    season TEXT NOT NULL,
+    user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    login TEXT NOT NULL UNIQUE,
+    full_name TEXT NOT NULL,
+    PRIMARY KEY(team_id, season)
+);
 CREATE TABLE IF NOT EXISTS tournaments(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE COLLATE RUNOCASE,
@@ -298,6 +323,33 @@ class Database:
         return self.conn.execute(
             "SELECT * FROM team_season_standings" + where +
             " ORDER BY season DESC, place ASC", params
+        ).fetchall()
+
+    def list_official_roster(self, season="2026-2027", team_id=None):
+        """Официальный состав команды из снимка сайта лиги за выбранный сезон."""
+        if team_id is None:
+            return self.conn.execute(
+                "SELECT * FROM official_team_roster WHERE season=? "
+                "ORDER BY team_id, jersey_number, full_name",
+                (season,),
+            ).fetchall()
+        return self.conn.execute(
+            "SELECT * FROM official_team_roster WHERE season=? AND team_id=? "
+            "ORDER BY jersey_number, full_name",
+            (season, team_id),
+        ).fetchall()
+
+    def list_official_team_accounts(self, season="2026-2027"):
+        """Локальные тренерские аккаунты, созданные импортом официальных капитанов."""
+        return self.conn.execute(
+            """
+            SELECT a.team_id, a.season, a.login, a.full_name, u.id AS user_id
+            FROM official_team_accounts a
+            JOIN users u ON u.id=a.user_id
+            WHERE a.season=?
+            ORDER BY a.full_name
+            """,
+            (season,),
         ).fetchall()
 
     def get_team(self, team_id):
