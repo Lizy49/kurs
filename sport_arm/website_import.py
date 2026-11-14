@@ -36,20 +36,21 @@ SOURCES = {
 # Игрок, который выделяется по опубликованной статистике сезона 2026-2027.
 # Это аналитическая отметка, не замена официальному капитану команды.
 STANDOUTS = {
-    "Рваный Кед": ("Новосад Кирилл", "приём 49, защита 63, всего 1 ошибка"),
-    "ОрлАнс": ("Лысенко Евгений", "23 блока"),
-    "МагаданЭнерго": ("Коксин Максим", "30 блоков и 16 эйсов"),
-    "СШ №5": ("Вутын Алексей", "приём 61, защита 75"),
-    "Анаконда": ("Доброконный Роман", "16 блоков, 8 эйсов, защита 57"),
-    "СВГУ": ("Буга Никита", "приём 113, защита 127"),
-    "Корунд": ("Высоцкий Иван", "приём 30, защита 52"),
-    "Импульс": ("Пидвирный Александр", "приём 29, 9 блоков, 6 эйсов"),
-    "Юность": ("Столинец Валерия", "приём 53, защита 42"),
-    "УниKids": ("Хекилаева Элина", "приём 57, защита 71"),
-    "Вихрь": ("Вебер Данила", "приём 50, защита 57"),
+    # team: player name, reason from published 26-27 stats, chosen local login
+    "Рваный Кед": ("Новосад Кирилл", "приём 49, защита 63, всего 1 ошибка", "novosad"),
+    "ОрлАнс": ("Лысенко Евгений", "23 блока", "lysenkoe"),
+    "МагаданЭнерго": ("Коксин Максим", "30 блоков и 16 эйсов", "koksin"),
+    "СШ №5": ("Вутын Алексей", "приём 61, защита 75", "vutyn"),
+    "Анаконда": ("Доброконный Роман", "16 блоков, 8 эйсов, защита 57", "dobrokonnyr"),
+    "СВГУ": ("Буга Никита", "приём 113, защита 127", "buga"),
+    "Корунд": ("Высоцкий Иван", "приём 30, защита 52", "vysotsky"),
+    "Импульс": ("Пидвирный Александр", "приём 29, 9 блоков, 6 эйсов", "pidvirny"),
+    "Юность": ("Столинец Валерия", "приём 53, защита 42", "stolinets"),
+    "УниKids": ("Хекилаева Элина", "приём 57, защита 71", "hekilayeva"),
+    "Вихрь": ("Вебер Данила", "приём 50, защита 57", "veber"),
 }
 
-CAPTAINS = {
+OFFICIAL_CAPTAINS = {
     "Рваный Кед": ("Петров Евгений", "petrov"),
     "ОрлАнс": ("Лысенко Сергей", "lysenko"),
     "МагаданЭнерго": ("Шулянов Евгений", "shulyanov"),
@@ -266,12 +267,19 @@ def _unique_login(db, preferred, team_slug):
 
 def _provision_captain_accounts(db, team_ids):
     accounts = []
+    team_slugs = {
+        "Рваный Кед": "rvanyyked", "ОрлАнс": "orlans",
+        "МагаданЭнерго": "magadanenergo", "СШ №5": "ssh5",
+        "Анаконда": "anakonda", "СВГУ": "svgu", "Корунд": "korund",
+        "Импульс": "impuls", "Юность": "yunost",
+        "УниKids": "unikids", "Вихрь": "vihr",
+    }
     with db.conn:
-        for team_name, (captain, preferred_login) in CAPTAINS.items():
+        for team_name, (full_name, reason, preferred_login) in STANDOUTS.items():
             team_id = team_ids[team_name]
             linked = db.conn.execute(
                 """
-                SELECT a.login, a.full_name, a.user_id
+                SELECT a.login, a.full_name
                 FROM official_team_accounts a
                 WHERE a.team_id=? AND a.season=?
                 """,
@@ -281,23 +289,17 @@ def _provision_captain_accounts(db, team_ids):
                 accounts.append({
                     "team": team_name, "full_name": linked["full_name"],
                     "login": linked["login"], "password": None,
-                    "created": False,
+                    "created": False, "reason": reason,
                 })
                 continue
 
-            login = _unique_login(db, preferred_login, {
-                "Рваный Кед": "rvanyyked", "ОрлАнс": "orlans",
-                "МагаданЭнерго": "magadanenergo", "СШ №5": "ssh5",
-                "Анаконда": "anakonda", "СВГУ": "svgu", "Корунд": "korund",
-                "Импульс": "impuls", "Юность": "yunost",
-                "УниKids": "unikids", "Вихрь": "vihr",
-            }[team_name])
+            login = _unique_login(db, preferred_login, team_slugs[team_name])
             cur = db.conn.execute(
                 """
                 INSERT INTO users(login, pass_hash, role, full_name, team_id)
                 VALUES(?,?,?,?,?)
                 """,
-                (login, hash_password(DEFAULT_PASSWORD), ROLE_COACH, captain, team_id),
+                (login, hash_password(DEFAULT_PASSWORD), ROLE_COACH, full_name, team_id),
             )
             user_id = cur.lastrowid
             db.conn.execute(
@@ -306,11 +308,11 @@ def _provision_captain_accounts(db, team_ids):
                     team_id, season, user_id, login, full_name
                 ) VALUES(?,?,?,?,?)
                 """,
-                (team_id, CURRENT_SEASON, user_id, login, captain),
+                (team_id, CURRENT_SEASON, user_id, login, full_name),
             )
             accounts.append({
-                "team": team_name, "full_name": captain, "login": login,
-                "password": DEFAULT_PASSWORD, "created": True,
+                "team": team_name, "full_name": full_name, "login": login,
+                "password": DEFAULT_PASSWORD, "created": True, "reason": reason,
             })
     return accounts
 
@@ -335,7 +337,7 @@ def import_magadan_teams(db):
                 if team is None:
                     cur = db.conn.execute(
                         "INSERT INTO teams(name, city, captain) VALUES(?,?,?)",
-                        (name, "Магадан", CAPTAINS.get(name, ("", ""))[0]),
+                        (name, "Магадан", STANDOUTS.get(name, ("", "", ""))[0]),
                     )
                     team_id = cur.lastrowid
                     added_teams += 1
@@ -345,10 +347,27 @@ def import_magadan_teams(db):
                         "UPDATE teams SET city=CASE WHEN trim(city)='' THEN 'Магадан' "
                         "ELSE city END, captain=CASE WHEN ?<>'' THEN ? ELSE captain END "
                         "WHERE id=?",
-                        (CAPTAINS.get(name, ("", ""))[0],
-                         CAPTAINS.get(name, ("", ""))[0], team_id),
+                        (STANDOUTS.get(name, ("", "", ""))[0],
+                         STANDOUTS.get(name, ("", "", ""))[0], team_id),
                     )
                 team_ids[name] = team_id
+                official_captain = OFFICIAL_CAPTAINS.get(name, "")
+                if official_captain:
+                    db.conn.execute(
+                        """
+                        INSERT INTO official_team_captains(
+                            team_id, season, full_name, source_url, imported_at
+                        ) VALUES(?,?,?,?,?)
+                        ON CONFLICT(team_id, season) DO UPDATE SET
+                            full_name=excluded.full_name,
+                            source_url=excluded.source_url,
+                            imported_at=excluded.imported_at
+                        """,
+                        (
+                            team_id, CURRENT_SEASON, official_captain,
+                            SOURCES.get(name, ""), SOURCE_DATE,
+                        ),
+                    )
                 db.conn.execute(
                     """
                     INSERT INTO team_season_standings(
