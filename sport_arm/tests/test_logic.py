@@ -550,6 +550,20 @@ class OfficialLeagueImportTests(unittest.TestCase):
         )
         self.assertEqual((player["blocks"], player["aces"]), (30, 16))
 
+    def test_standout_markers_point_to_real_roster_entries(self):
+        from website_import import STANDOUTS, import_magadan_teams
+
+        db = make_db()
+        import_magadan_teams(db)
+        teams = {row["name"]: row for row in db.list_teams()}
+        self.assertEqual(set(STANDOUTS), set(teams) & set(STANDOUTS))
+        for team_name, (player_name, _reason) in STANDOUTS.items():
+            names = {
+                row["full_name"]
+                for row in db.list_official_roster("2026-2027", teams[team_name]["id"])
+            }
+            self.assertIn(player_name, names, team_name)
+
     def test_old_season_only_teams_are_kept_as_archive(self):
         from website_import import import_magadan_teams
 
