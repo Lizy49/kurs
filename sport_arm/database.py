@@ -205,6 +205,14 @@ CREATE TABLE IF NOT EXISTS official_team_accounts(
     full_name TEXT NOT NULL,
     PRIMARY KEY(team_id, season)
 );
+CREATE TABLE IF NOT EXISTS official_team_captains(
+    team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    season TEXT NOT NULL,
+    full_name TEXT NOT NULL,
+    source_url TEXT NOT NULL DEFAULT '',
+    imported_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY(team_id, season)
+);
 CREATE TABLE IF NOT EXISTS tournaments(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE COLLATE RUNOCASE,
@@ -351,6 +359,14 @@ class Database:
             """,
             (season,),
         ).fetchall()
+
+    def get_official_team_captain(self, team_id, season="2026-2027"):
+        """Имя капитана, прямо указанное на странице Федерации."""
+        row = self.conn.execute(
+            "SELECT full_name FROM official_team_captains WHERE team_id=? AND season=?",
+            (team_id, season),
+        ).fetchone()
+        return row["full_name"] if row else None
 
     def get_team(self, team_id):
         return self.conn.execute(
