@@ -467,35 +467,88 @@ if __name__ == "__main__":
 
 
 class OfficialLeagueImportTests(unittest.TestCase):
-    def test_import_official_teams_is_idempotent(self):
-        from website_import import import_magadan_teams
+    def test_import_official_rosters_and_captain_accounts(self):
+        from website_import import (
+            CAPTAINS, CURRENT_SEASON, DEFAULT_PASSWORD, ROSTERS,
+            import_magadan_teams,
+        )
 
         db = make_db()
         first = import_magadan_teams(db)
+        expected_roster_count = sum(len(rows) for rows in ROSTERS.values())
+
         self.assertEqual(first["added_teams"], 14)
-        self.assertEqual(first["imported_rows"], 22)
+        self.assertEqual(first["imported_standings"], 22)
+        self.assertEqual(first["imported_roster"], expected_roster_count)
         self.assertEqual(first["total_teams"], 14)
-        self.assertEqual(
-            db.conn.execute(
-                "SELECT COUNT(*) FROM team_season_standings WHERE season='2026-2027'"
-            ).fetchone()[0], 11
-        )
-        self.assertEqual(
-            db.conn.execute(
-                "SELECT COUNT(*) FROM team_season_standings WHERE season='2025-2026'"
-            ).fetchone()[0], 11
-        )
-        self.assertEqual(len(db.list_teams()), 14)
+        self.assertEqual(first["current_roster_teams"], 11)
+        self.assertEqual(len(first["captain_accounts"]), 11)
+        self.assertEqual(len(db.list_official_roster(CURRENT_SEASON)), expected_roster_count)
         self.assertEqual(
             db.conn.execute("SELECT COUNT(*) FROM players").fetchone()[0], 0,
-            "Импорт не должен выдумывать составы игроков",
+            "Официальный импорт не должен записывать неподтверждённые позиции/годы рождения",
         )
 
+        teams_by_name = {row["name"]: row for row in db.list_teams()}
+        for team_name, (captain, expected_login) in CAPTAINS.items():
+            team = teams_by_name[team_name]
+            self.assertEqual(team["captain"], captain)
+            user = db.login(expected_login, DEFAULT_PASSWORD)
+            self.assertIsNotNone(user, team_name)
+            self.assertEqual(user["role"], "coach")
+            self.assertEqual(user["full_name"], captain)
+            self.assertEqual(user["team_id"], team["id"])
+
+        # All rows belong to the requested 2026-2027 season; the historical
+        # season remains standings-only and never receives an old roster.
+        seasons = {
+            row[0] for row in db.conn.execute(
+                "SELECT DISTINCT season FROM official_team_roster"
+            ).fetchall()
+        }
+        self.assertEqual(seasons, {CURRENT_SEASON})
+
+        # A second import refreshes the snapshot but neither duplicates users
+        # nor resets existing account passwords.
         second = import_magadan_teams(db)
         self.assertEqual(second["added_teams"], 0)
-        self.assertEqual(second["imported_rows"], 22)
-        self.assertEqual(second["total_teams"], 14)
-        self.assertEqual(len(db.list_team_season_stats()), 22)
+        self.assertEqual(second["imported_roster"], expected_roster_count)
+        self.assertEqual(
+            db.conn.execute("SELECT COUNT(*) FROM official_team_accounts").fetchone()[0],
+            11,
+        )
+        self.assertEqual(
+            db.conn.execute("SELECT COUNT(*) FROM users WHERE role='coach'").fetchone()[0],
+            11,
+        )
+        self.assertEqual(len(db.list_official_roster(CURRENT_SEASON)), expected_roster_count)
+
+    def test_roster_number_duplicates_are_preserved(self):
+        from website_import import import_magadan_teams
+
+        db = make_db()
+        import_magadan_teams(db)
+        team = next(row for row in db.list_teams() if row["name"] == "Вихрь")
+        duplicate_shirts = [
+            row["full_name"]
+            for row in db.list_official_roster("2026-2027", team["id"])
+            if row["jersey_number"] == 22
+        ]
+        self.assertEqual(
+            set(duplicate_shirts), {"Леванюк Максим", "Молканов Сергей"}
+        )
+
+    def test_standout_performances_are_imported_for_current_season(self):
+        from website_import import import_magadan_teams
+
+        db = make_db()
+        import_magadan_teams(db)
+        magadan = next(row for row in db.list_teams() if row["name"] == "МагаданЭнерго")
+        player = next(
+            row for row in db.list_official_roster("2026-2027", magadan["id"])
+            if row["full_name"] == "Коксин Максим"
+        )
+        self.assertEqual((player["blocks"], player["aces"]), (30, 16))
 
     def test_old_season_only_teams_are_kept_as_archive(self):
         from website_import import import_magadan_teams
