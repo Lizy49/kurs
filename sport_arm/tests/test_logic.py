@@ -469,7 +469,7 @@ if __name__ == "__main__":
 class OfficialLeagueImportTests(unittest.TestCase):
     def test_import_official_rosters_and_captain_accounts(self):
         from website_import import (
-            CAPTAINS, CURRENT_SEASON, DEFAULT_PASSWORD, ROSTERS,
+            OFFICIAL_CAPTAINS, STANDOUTS, CURRENT_SEASON, DEFAULT_PASSWORD, ROSTERS,
             import_magadan_teams,
         )
 
@@ -490,13 +490,17 @@ class OfficialLeagueImportTests(unittest.TestCase):
         )
 
         teams_by_name = {row["name"]: row for row in db.list_teams()}
-        for team_name, (captain, expected_login) in CAPTAINS.items():
+        for team_name, (standout, _reason, expected_login) in STANDOUTS.items():
             team = teams_by_name[team_name]
-            self.assertEqual(team["captain"], captain)
+            self.assertEqual(team["captain"], standout)
+            self.assertEqual(
+                db.get_official_team_captain(team["id"], CURRENT_SEASON),
+                OFFICIAL_CAPTAINS[team_name],
+            )
             user = db.login(expected_login, DEFAULT_PASSWORD)
             self.assertIsNotNone(user, team_name)
             self.assertEqual(user["role"], "coach")
-            self.assertEqual(user["full_name"], captain)
+            self.assertEqual(user["full_name"], standout)
             self.assertEqual(user["team_id"], team["id"])
 
         # All rows belong to the requested 2026-2027 season; the historical
@@ -557,7 +561,7 @@ class OfficialLeagueImportTests(unittest.TestCase):
         import_magadan_teams(db)
         teams = {row["name"]: row for row in db.list_teams()}
         self.assertEqual(set(STANDOUTS), set(teams) & set(STANDOUTS))
-        for team_name, (player_name, _reason) in STANDOUTS.items():
+        for team_name, (player_name, _reason, _login) in STANDOUTS.items():
             names = {
                 row["full_name"]
                 for row in db.list_official_roster("2026-2027", teams[team_name]["id"])
