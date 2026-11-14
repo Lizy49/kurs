@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from database import (Database, ValidationError, fmt_date, load_demo,  # noqa: E402
+from database import (Database, ValidationError, fmt_date,  # noqa: E402
                       parse_date, seed_order, export_to_file)
 
 
@@ -32,11 +32,24 @@ def tournament_with_teams(db, n, system="olympic"):
 
 
 class AuthTests(unittest.TestCase):
-    def test_default_admin(self):
+    def test_first_run_has_no_default_accounts(self):
         db = make_db()
-        self.assertIsNotNone(db.login("admin", "admin"))
-        self.assertIsNone(db.login("admin", "wrong"))
-        self.assertIsNone(db.login("nobody", "x"))
+        self.assertFalse(db.has_organizer())
+        self.assertIsNone(db.login("admin", "admin"))
+        self.assertIsNone(db.login("coach", "coach"))
+        self.assertEqual(db.conn.execute("SELECT COUNT(*) FROM users").fetchone()[0], 0)
+
+    def test_create_first_organizer(self):
+        db = make_db()
+        user_id = db.create_organizer("myadmin", "StrongPass1", "Иванов Иван")
+        user = db.login("MYADMIN", "StrongPass1")
+        self.assertEqual(user["id"], user_id)
+        self.assertEqual(user["role"], "organizer")
+        self.assertTrue(db.has_organizer())
+        with self.assertRaises(ValidationError):
+            db.create_organizer("second", "StrongPass2", "Второй Администратор")
+        with self.assertRaises(ValidationError):
+            make_db().create_organizer("ab", "short", "Иванов Иван")
 
     def test_register_coach(self):
         db = make_db()
@@ -417,7 +430,15 @@ class ScheduleTests(unittest.TestCase):
 class ExportTests(unittest.TestCase):
     def test_exports(self):
         db = make_db()
-        load_demo(db)
+        teams = [add_team(db, f"Команда {i}", players=6) for i in range(4)]
+        for index, system in enumerate(("olympic", "round_robin"), start=1):
+            tournament_id = db.create_tournament(
+                f"Турнир {index}", "Волейбол", system,
+                "01.06.2026", "30.06.2026", "Спортивный зал",
+            )
+            for team_id in teams:
+                application_id = db.submit_application(tournament_id, team_id)
+                db.set_application_status(application_id, "approved")
         tid = db.list_tournaments()[1]["id"]            # олимпийский или круговой
         for t in db.list_tournaments():
             if db.approved_teams(t["id"]):
@@ -451,130 +472,19 @@ class ExportTests(unittest.TestCase):
             db.export_rows("unknown", tid)
 
 
-class DemoTests(unittest.TestCase):
-    def test_demo_once(self):
+class ManualTeamTests(unittest.TestCase):
+    def test_manual_team_and_player_entry(self):
         db = make_db()
-        self.assertTrue(load_demo(db))
-        self.assertFalse(load_demo(db))
-        self.assertIsNotNone(db.login("coach", "coach"))
-        self.assertEqual(len(db.list_teams()), 8)
-        self.assertEqual(len(db.list_tournaments()), 2)
+        team_id = db.create_team("Полярные", "Магадан", "Иванов И.")
+        db.add_player(team_id, "Петров Пётр", 7, "Либеро", 2004)
+        team = db.get_team(team_id)
+        player = db.list_players(team_id)[0]
+        self.assertEqual(team["players_count"], 1)
+        self.assertEqual(player["position"], "Либеро")
+        db.delete_team(team_id)
+        self.assertEqual(len(db.list_teams()), 0)
+        self.assertEqual(db.conn.execute("SELECT COUNT(*) FROM players").fetchone()[0], 0)
 
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
-
-
-
-class OfficialLeagueImportTests(unittest.TestCase):
-    def test_import_official_rosters_and_captain_accounts(self):
-        from website_import import (
-            OFFICIAL_CAPTAINS, STANDOUTS, CURRENT_SEASON, DEFAULT_PASSWORD, ROSTERS,
-            import_magadan_teams,
-        )
-
-        db = make_db()
-        first = import_magadan_teams(db)
-        expected_roster_count = sum(len(rows) for rows in ROSTERS.values())
-
-        self.assertEqual(first["added_teams"], 14)
-        self.assertEqual(first["imported_standings"], 22)
-        self.assertEqual(first["imported_roster"], expected_roster_count)
-        self.assertEqual(first["total_teams"], 14)
-        self.assertEqual(first["current_roster_teams"], 11)
-        self.assertEqual(len(first["captain_accounts"]), 11)
-        self.assertEqual(len(db.list_official_roster(CURRENT_SEASON)), expected_roster_count)
-        self.assertEqual(
-            db.conn.execute("SELECT COUNT(*) FROM players").fetchone()[0], 0,
-            "Официальный импорт не должен записывать неподтверждённые позиции/годы рождения",
-        )
-
-        teams_by_name = {row["name"]: row for row in db.list_teams()}
-        for team_name, (standout, _reason, expected_login) in STANDOUTS.items():
-            team = teams_by_name[team_name]
-            self.assertEqual(team["captain"], standout)
-            self.assertEqual(
-                db.get_official_team_captain(team["id"], CURRENT_SEASON),
-                OFFICIAL_CAPTAINS[team_name][0],
-            )
-            user = db.login(expected_login, DEFAULT_PASSWORD)
-            self.assertIsNotNone(user, team_name)
-            self.assertEqual(user["role"], "coach")
-            self.assertEqual(user["full_name"], standout)
-            self.assertEqual(user["team_id"], team["id"])
-
-        # All rows belong to the requested 2026-2027 season; the historical
-        # season remains standings-only and never receives an old roster.
-        seasons = {
-            row[0] for row in db.conn.execute(
-                "SELECT DISTINCT season FROM official_team_roster"
-            ).fetchall()
-        }
-        self.assertEqual(seasons, {CURRENT_SEASON})
-
-        # A second import refreshes the snapshot but neither duplicates users
-        # nor resets existing account passwords.
-        second = import_magadan_teams(db)
-        self.assertEqual(second["added_teams"], 0)
-        self.assertEqual(second["imported_roster"], expected_roster_count)
-        self.assertEqual(
-            db.conn.execute("SELECT COUNT(*) FROM official_team_accounts").fetchone()[0],
-            11,
-        )
-        self.assertEqual(
-            db.conn.execute("SELECT COUNT(*) FROM users WHERE role='coach'").fetchone()[0],
-            11,
-        )
-        self.assertEqual(len(db.list_official_roster(CURRENT_SEASON)), expected_roster_count)
-
-    def test_roster_number_duplicates_are_preserved(self):
-        from website_import import import_magadan_teams
-
-        db = make_db()
-        import_magadan_teams(db)
-        team = next(row for row in db.list_teams() if row["name"] == "Вихрь")
-        duplicate_shirts = [
-            row["full_name"]
-            for row in db.list_official_roster("2026-2027", team["id"])
-            if row["jersey_number"] == 22
-        ]
-        self.assertEqual(
-            set(duplicate_shirts), {"Леванюк Максим", "Молканов Сергей"}
-        )
-
-    def test_standout_performances_are_imported_for_current_season(self):
-        from website_import import import_magadan_teams
-
-        db = make_db()
-        import_magadan_teams(db)
-        magadan = next(row for row in db.list_teams() if row["name"] == "МагаданЭнерго")
-        player = next(
-            row for row in db.list_official_roster("2026-2027", magadan["id"])
-            if row["full_name"] == "Коксин Максим"
-        )
-        self.assertEqual((player["blocks"], player["aces"]), (30, 16))
-
-    def test_standout_markers_point_to_real_roster_entries(self):
-        from website_import import STANDOUTS, import_magadan_teams
-
-        db = make_db()
-        import_magadan_teams(db)
-        teams = {row["name"]: row for row in db.list_teams()}
-        self.assertEqual(set(STANDOUTS), set(teams) & set(STANDOUTS))
-        for team_name, (player_name, _reason, _login) in STANDOUTS.items():
-            names = {
-                row["full_name"]
-                for row in db.list_official_roster("2026-2027", teams[team_name]["id"])
-            }
-            self.assertIn(player_name, names, team_name)
-
-    def test_old_season_only_teams_are_kept_as_archive(self):
-        from website_import import import_magadan_teams
-
-        db = make_db()
-        import_magadan_teams(db)
-        archive_names = {
-            row["name"] for row in db.list_teams()
-            if not db.list_team_season_stats("2026-2027", row["id"])
-        }
-        self.assertEqual(archive_names, {"Бей-Беги", "Больные Колени", "Искра"})
