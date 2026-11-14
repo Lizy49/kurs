@@ -874,14 +874,14 @@ class TeamsTab(BaseTab):
         super().__init__(app)
         self.title(
             "Команды и составы",
-            "Команды ЛВЛ из официальных таблиц Магадана и составы, которыми управляет приложение."
+            "Официальные составы и статистика игроков ЛВЛ 2026–2027, капитаны и локальные карточки игроков."
         )
         self.toolbar(
-            make_button("Загрузить команды с сайта", self.import_official, "primary")
+            make_button("Импортировать составы и аккаунты ЛВЛ 26–27", self.import_official, "primary")
         )
         self.source_note = QLabel(
-            "Источник: volleyball-mgdn.ru · снимок таблиц 2026–2027 и 2025–2026 от 14.11.2026. "
-            "Повторный импорт не создаёт дубликаты."
+            "Источник: страницы 11 команд volleyball-mgdn.ru · сезон 2026–2027 · "
+            "статистика: приём, блок, эйс, защита и ошибки."
         )
         self.source_note.setObjectName("Muted")
         self.source_note.setWordWrap(True)
@@ -889,12 +889,8 @@ class TeamsTab(BaseTab):
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self.teams = DataTable(
-            ["Команда", "Город", "Капитан", "Место 26/27", "Очки", "Игроков"],
-            widths=[180, 100, 140, 95, 65, 70]
-        )
-        self.players = DataTable(
-            ["№", "ФИО", "Амплуа", "Год рождения"],
-            widths=[50, 210, 150, 100]
+            ["Команда", "Капитан", "Место", "Очки", "Игроков"],
+            widths=[170, 150, 65, 65, 70]
         )
 
         right_panel = QWidget()
@@ -905,37 +901,61 @@ class TeamsTab(BaseTab):
         self.selected_team_label.setStyleSheet(
             "font-size: 12pt; font-weight: 600; color: #263449;"
         )
-        self.team_seasons_note = QLabel("Сезонная статистика и локальный состав команды.")
+        self.team_seasons_note = QLabel(
+            "Составы и статистика в этой вкладке ограничены сезоном ЛВЛ 2026–2027."
+        )
         self.team_seasons_note.setObjectName("Muted")
         self.team_seasons_note.setWordWrap(True)
         right_layout.addWidget(self.selected_team_label)
         right_layout.addWidget(self.team_seasons_note)
-        right_layout.addWidget(self.players, 1)
+
+        self.official_roster = DataTable(
+            ["№", "Игрок", "Приём", "Блок", "Эйс", "Защита", "Ошибки"],
+            widths=[42, 175, 58, 58, 55, 68, 65]
+        )
+        self.local_players = DataTable(
+            ["№", "ФИО", "Амплуа", "Год рождения"],
+            widths=[50, 210, 150, 100]
+        )
+        self.roster_tabs = QTabWidget()
+        self.roster_tabs.addTab(self.official_roster, "ЛВЛ 2026–2027")
+        self.roster_tabs.addTab(self.local_players, "Локальные карточки")
+        right_layout.addWidget(self.roster_tabs, 1)
 
         splitter.addWidget(self.teams)
         splitter.addWidget(right_panel)
         splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 2)
+        splitter.setStretchFactor(1, 4)
         self.layout.addWidget(splitter, 1)
         self.teams.itemSelectionChanged.connect(self.show_players)
 
     def import_official(self):
         try:
             result = import_magadan_teams(self.db)
-        except (sqlite3.Error, OSError) as exc:
-            warn(self, "Импорт команд", str(exc))
+        except (sqlite3.Error, OSError, ValueError) as exc:
+            warn(self, "Импорт ЛВЛ", str(exc))
             return
         self.app.refresh_all()
-        self.app.notify("Официальные команды и таблицы сезонов загружены")
-        info(
-            self, "Импорт завершён",
-            f"Новых команд: {result['added_teams']}\n"
-            f"Строк таблицы сезонов: {result['imported_rows']}\n"
-            f"Всего команд в базе: {result['total_teams']}\n\n"
-            "Текущая ЛВЛ 2026–2027: 11 команд.\n"
-            "Архив ЛВЛ 2025–2026: 11 записей.\n"
-            "Исторические команды не удаляются при повторном импорте."
-        )
+        self.app.notify("Составы ЛВЛ 2026–2027 и аккаунты капитанов загружены")
+
+        lines = [
+            "КОМАНДА — КАПИТАН — ЛОГИН — ПАРОЛЬ",
+            "",
+        ]
+        for account in result["captain_accounts"]:
+            password = account["password"] or "создан ранее"
+            lines.append(
+                f"{account['team']} — {account['full_name']} — "
+                f"{account['login']} — {password}"
+            )
+        lines.extend([
+            "",
+            f"Загружено игроков: {result['imported_roster']}.",
+            f"Создано новых аккаунтов: {sum(1 for a in result['captain_accounts'] if a['created'])}.",
+            "Роль локальных аккаунтов: тренер / капитан.",
+            "Все пароли при первом импорте установлены в 123123.",
+        ])
+        info(self, "Импорт завершён", "\n".join(lines))
 
     def refresh(self):
         teams = self.db.list_teams()
@@ -943,14 +963,17 @@ class TeamsTab(BaseTab):
             row["team_id"]: row
             for row in self.db.list_team_season_stats("2026-2027")
         }
+        roster_counts = {}
+        for player in self.db.list_official_roster("2026-2027"):
+            roster_counts[player["team_id"]] = roster_counts.get(player["team_id"], 0) + 1
         self.teams.fill([
             (
                 team["id"],
                 (
-                    team["name"], team["city"], team["captain"] or "—",
-                    current[team["id"]]["place"] if team["id"] in current else "Архив",
+                    team["name"], team["captain"] or "—",
+                    current[team["id"]]["place"] if team["id"] in current else "—",
                     current[team["id"]]["points"] if team["id"] in current else "—",
-                    team["players_count"],
+                    roster_counts.get(team["id"], 0),
                 ),
                 [],
             )
@@ -960,43 +983,56 @@ class TeamsTab(BaseTab):
 
     def show_players(self):
         team_id = self.teams.selected_id()
-        rows = []
+        official_rows = []
+        local_rows = []
         if team_id is None:
             self.selected_team_label.setText("Выберите команду")
             self.team_seasons_note.setText(
-                "В таблице слева отображаются команды и сезонные показатели."
+                "Выберите команду слева, чтобы увидеть состав и статистику ЛВЛ 2026–2027."
             )
         else:
             team = self.db.get_team(team_id)
             self.selected_team_label.setText(team["name"] if team else "Команда")
-            history = self.db.list_team_season_stats(team_id=team_id)
+            history = self.db.list_team_season_stats(
+                season="2026-2027", team_id=team_id
+            )
             if history:
-                descriptions = []
-                for item in history:
-                    descriptions.append(
-                        f"ЛВЛ {item['season']}: место {item['place']}, "
-                        f"{item['points']} очков, матчей {item['matches_played']} "
-                        f"(В/П: {item['wins']}/{item['losses']})"
-                    )
-                self.team_seasons_note.setText("\n".join(descriptions))
+                item = history[0]
+                self.team_seasons_note.setText(
+                    f"Капитан: {team['captain'] or 'не указан'} · "
+                    f"место {item['place']} · {item['points']} очков · "
+                    f"матчей {item['matches_played']} · "
+                    f"победы/поражения {item['wins']}/{item['losses']}"
+                )
             else:
                 self.team_seasons_note.setText(
-                    "Сезонной статистики на официальном сайте для этой команды не найдено."
+                    f"Капитан: {team['captain'] or 'не указан'} · "
+                    "сезонная таблица пока не импортирована."
                 )
-            rows = [
+            official_rows = [
+                (
+                    row["id"],
+                    (
+                        row["jersey_number"], row["full_name"], row["reception"],
+                        row["blocks"], row["aces"], row["defense"], row["errors"],
+                    ),
+                    [],
+                )
+                for row in self.db.list_official_roster("2026-2027", team_id)
+            ]
+            local_rows = [
                 (
                     player["id"],
-                    (player["number"], player["full_name"],
-                     player["position"], player["birth_year"]),
+                    (
+                        player["number"], player["full_name"],
+                        player["position"], player["birth_year"],
+                    ),
                     [],
                 )
                 for player in self.db.list_players(team_id)
             ]
-        self.players.fill(rows)
-        if team_id is not None and not rows:
-            self.players.setToolTip(
-                "Состав пока не заполнен. Добавьте игроков после подтверждения состава тренером."
-            )
+        self.official_roster.fill(official_rows)
+        self.local_players.fill(local_rows)
 
 
 class MatchesTab(BaseTab):
