@@ -9,7 +9,7 @@ import sqlite3
 import sys
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QBrush, QFont, QPainter, QPen, QKeySequence, QShortcut
+from PyQt6.QtGui import QColor, QBrush, QFont, QIcon, QPainter, QPen, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QApplication, QAbstractItemView, QCheckBox, QComboBox, QDialog,
     QDialogButtonBox, QFormLayout, QFrame, QGraphicsScene, QGraphicsView,
@@ -25,6 +25,7 @@ from database import (
     TOURNAMENT_STATUS, ValidationError, fmt_date
 )
 
+ICON_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "icon.png")
 
 DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sport_arm.db")
 POSITIONS = [
@@ -2251,6 +2252,7 @@ class MainWindow(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("АРМ «Спортивный организатор»")
+    app.setWindowIcon(QIcon(ICON_FILE))
     font = QFont("Segoe UI", 10)
     font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
     app.setFont(font)
