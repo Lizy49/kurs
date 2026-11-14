@@ -292,8 +292,8 @@ QLabel#AuthHeroText {
     font-size: 10pt;
 }
 QFrame#AuthFeature {
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.12);
+    background: #2b4467;
+    border: 1px solid #3e5d85;
     border-radius: 11px;
 }
 QLabel#AuthFeatureIcon {
@@ -2030,10 +2030,12 @@ class MainWindow(QMainWindow):
         nav_scroll = QScrollArea()
         nav_scroll.setWidgetResizable(True)
         nav_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        nav_scroll.setStyleSheet("background: transparent;")
         nav_scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
         nav_content = QWidget()
+        nav_content.setStyleSheet("background: transparent;")
         nav_layout = QVBoxLayout(nav_content)
         nav_layout.setContentsMargins(0, 0, 3, 0)
         nav_layout.setSpacing(3)
