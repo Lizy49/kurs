@@ -342,6 +342,10 @@ class VolleyballTests(unittest.TestCase):
         self.assertEqual(len(rows), 4)
         self.assertIn("Счёт партии", headers)
 
+        db.clear_result(match["id"])
+        self.assertEqual(len(db.get_match_sets(match["id"])), 0)
+        self.assertEqual(db.get_match(match["id"])["status"], "scheduled")
+
     def test_volleyball_five_set_points_and_standings(self):
         db = make_db()
         tid, team_ids = self.make_tournament(db, count=2)
