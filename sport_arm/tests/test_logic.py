@@ -305,6 +305,98 @@ class RoundRobinTests(unittest.TestCase):
             self.assertEqual(r["diff"], r["gf"] - r["ga"])
 
 
+class VolleyballTests(unittest.TestCase):
+    def make_tournament(self, db, count=2, system="round_robin"):
+        tid = db.create_tournament(
+            "Кубок по волейболу", "Волейбол", system,
+            "17.11.2026", "30.11.2026", "Спортивный зал"
+        )
+        team_ids = [add_team(db, f"Волейбольная команда {i}") for i in range(count)]
+        for team_id in team_ids:
+            application_id = db.submit_application(tid, team_id)
+            db.set_application_status(application_id, "approved")
+        db.generate_bracket(tid)
+        return tid, team_ids
+
+    def test_volleyball_match_stores_every_set(self):
+        db = make_db()
+        tid, team_ids = self.make_tournament(db)
+        match = db.list_matches(tid)[0]
+
+        db.record_volleyball_result(match["id"], [
+            (25, 21), (25, 17), (23, 25), (25, 22)
+        ])
+
+        saved = db.get_match(match["id"])
+        self.assertEqual((saved["score1"], saved["score2"]), (3, 1))
+        self.assertEqual(
+            [(row["team1_points"], row["team2_points"])
+             for row in db.get_match_sets(match["id"])],
+            [(25, 21), (25, 17), (23, 25), (25, 22)]
+        )
+        self.assertIn("25:21", db.score_text(saved))
+        self.assertIn("25:22", db.score_text(saved))
+        self.assertEqual(db.team_stats(team_ids[0], tid)["points"], 3)
+        title, headers, rows = db.export_rows("match_report", match_id=match["id"])
+        self.assertEqual(title, "Протокол_матча")
+        self.assertEqual(len(rows), 4)
+        self.assertIn("Счёт партии", headers)
+
+    def test_volleyball_five_set_points_and_standings(self):
+        db = make_db()
+        tid, team_ids = self.make_tournament(db, count=2)
+        match = db.list_matches(tid)[0]
+
+        db.record_volleyball_result(match["id"], [
+            (25, 23), (22, 25), (25, 20), (21, 25), (15, 12)
+        ])
+
+        first = db.team_stats(team_ids[0], tid)
+        second = db.team_stats(team_ids[1], tid)
+        self.assertEqual((first["wins"], first["points"]), (1, 2))
+        self.assertEqual((second["losses"], second["points"]), (1, 1))
+        table = {row["team_id"]: row for row in db.standings(tid)}
+        self.assertEqual(table[team_ids[0]]["points"], 2)
+        self.assertEqual(table[team_ids[1]]["points"], 1)
+
+    def test_volleyball_rejects_invalid_set_scores(self):
+        db = make_db()
+        tid, _ = self.make_tournament(db)
+        match_id = db.list_matches(tid)[0]["id"]
+        invalid_results = [
+            [(24, 21), (25, 20), (25, 20)],
+            [(25, 24), (25, 20), (25, 20)],
+            [(26, 25), (25, 20), (25, 20)],
+            [(25, 20), (25, 20)],
+            [(25, 20), (25, 20), (25, 20), (25, 10)],
+            [(25, 20), (25, 20), (25, 20), (25, 20), (15, 10)]
+        ]
+        for result in invalid_results:
+            with self.subTest(result=result):
+                with self.assertRaises(ValidationError):
+                    db.record_volleyball_result(match_id, result)
+        self.assertEqual(db.get_match(match_id)["status"], "scheduled")
+        self.assertEqual(len(db.get_match_sets(match_id)), 0)
+
+    def test_volleyball_date_export(self):
+        db = make_db()
+        tid, _ = self.make_tournament(db)
+        match = db.list_matches(tid)[0]
+        db.set_match_schedule(match["id"], "18.11.2026", "14:30", "Зал 1")
+        db.record_volleyball_result(match["id"], [
+            (25, 21), (25, 17), (25, 20)
+        ])
+
+        title, headers, rows = db.export_rows(
+            "matches_by_date", tid, match_date="18.11.2026"
+        )
+        self.assertEqual(title, "Матчи_2026-11-18")
+        self.assertEqual(len(rows), 1)
+        self.assertIn("25:21", rows[0][9])
+        with self.assertRaises(ValidationError):
+            db.export_rows("matches_by_date", tid, match_date="19.11.2026")
+
+
 class RatingTests(unittest.TestCase):
     def test_elo(self):
         db = make_db()
