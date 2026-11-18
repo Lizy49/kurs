@@ -359,6 +359,20 @@ class VolleyballTests(unittest.TestCase):
         self.assertEqual(table[team_ids[0]]["points"], 2)
         self.assertEqual(table[team_ids[1]]["points"], 1)
 
+    def test_english_volleyball_label_uses_volleyball_scoring(self):
+        db = make_db()
+        tid, team_ids = self.make_tournament(db, count=2)
+        db.conn.execute(
+            "UPDATE tournaments SET sport='Volleyball' WHERE id=?", (tid,)
+        )
+        self.assertTrue(db.is_volleyball_tournament(tid))
+        match = db.list_matches(tid)[0]
+        db.record_volleyball_result(match["id"], [
+            (25, 20), (25, 22), (25, 18)
+        ])
+        self.assertEqual(db.team_stats(team_ids[0], tid)["points"], 3)
+        self.assertEqual(db.team_stats(team_ids[1], tid)["points"], 0)
+
     def test_volleyball_rejects_invalid_set_scores(self):
         db = make_db()
         tid, _ = self.make_tournament(db)
