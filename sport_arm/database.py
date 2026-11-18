@@ -647,9 +647,10 @@ class Database:
 
     def is_volleyball_tournament(self, tournament_id):
         tournament = self.get_tournament(tournament_id)
-        return bool(
-            tournament and "волейбол" in (tournament["sport"] or "").casefold()
-        )
+        if tournament is None:
+            return False
+        sport = (tournament["sport"] or "").casefold()
+        return "волейбол" in sport or "volleyball" in sport
 
     def score_text(self, match):
         if match["status"] == "bye":
@@ -982,7 +983,8 @@ class Database:
                 gf, ga = match["score1"], match["score2"]
             else:
                 gf, ga = match["score2"], match["score1"]
-            if "волейбол" in (match["sport"] or "").casefold():
+            sport = (match["sport"] or "").casefold()
+            if "волейбол" in sport or "volleyball" in sport:
                 self._apply_volleyball(stat, gf, ga)
             else:
                 self._apply(stat, gf, ga)
@@ -1002,7 +1004,10 @@ class Database:
                 (tid,)).fetchall():
             apply_result = (
                 self._apply_volleyball
-                if "волейбол" in (match["sport"] or "").casefold()
+                if (
+                    "волейбол" in (match["sport"] or "").casefold()
+                    or "volleyball" in (match["sport"] or "").casefold()
+                )
                 else self._apply
             )
             if match["team1_id"] in table:
