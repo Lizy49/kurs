@@ -639,10 +639,12 @@ class Database:
         scores = self.get_match_sets(match_id)
         if reverse:
             return " · ".join(
-                f"{row['team2_points']}:{row['team1_points']}" for row in scores
+                f"{row['set_number']} партия ({row['team2_points']}:{row['team1_points']})"
+                for row in scores
             )
         return " · ".join(
-            f"{row['team1_points']}:{row['team2_points']}" for row in scores
+            f"{row['set_number']} партия ({row['team1_points']}:{row['team2_points']})"
+            for row in scores
         )
 
     def is_volleyball_tournament(self, tournament_id):
