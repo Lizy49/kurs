@@ -197,6 +197,13 @@ CREATE TABLE IF NOT EXISTS matches(
     next_match_id INTEGER,
     next_slot INTEGER
 );
+CREATE TABLE IF NOT EXISTS match_sets(
+    match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+    set_number INTEGER NOT NULL CHECK(set_number BETWEEN 1 AND 5),
+    team1_points INTEGER NOT NULL CHECK(team1_points >= 0),
+    team2_points INTEGER NOT NULL CHECK(team2_points >= 0),
+    PRIMARY KEY(match_id, set_number)
+);
 """
 
 
@@ -614,17 +621,44 @@ class Database:
 
     def get_match(self, match_id):
         return self.conn.execute(
-            "SELECT m.*, a.name AS team1_name, b.name AS team2_name "
+            "SELECT m.*, a.name AS team1_name, b.name AS team2_name, "
+            "w.name AS winner_name "
             "FROM matches m LEFT JOIN teams a ON a.id=m.team1_id "
-            "LEFT JOIN teams b ON b.id=m.team2_id WHERE m.id=?", (match_id,)).fetchone()
+            "LEFT JOIN teams b ON b.id=m.team2_id "
+            "LEFT JOIN teams w ON w.id=m.winner_id WHERE m.id=?", (match_id,)).fetchone()
 
-    @staticmethod
-    def score_text(m):
-        if m["status"] == "bye":
+    def get_match_sets(self, match_id):
+        """Возвращает результаты партий матча по порядку."""
+        return self.conn.execute(
+            "SELECT set_number, team1_points, team2_points FROM match_sets "
+            "WHERE match_id=? ORDER BY set_number", (match_id,)
+        ).fetchall()
+
+    def match_sets_text(self, match_id, reverse=False):
+        """Краткая запись очков в партиях, например 25:21 · 25:17 · 20:25."""
+        scores = self.get_match_sets(match_id)
+        if reverse:
+            return " · ".join(
+                f"{row['team2_points']}:{row['team1_points']}" for row in scores
+            )
+        return " · ".join(
+            f"{row['team1_points']}:{row['team2_points']}" for row in scores
+        )
+
+    def is_volleyball_tournament(self, tournament_id):
+        tournament = self.get_tournament(tournament_id)
+        return bool(
+            tournament and "волейбол" in (tournament["sport"] or "").casefold()
+        )
+
+    def score_text(self, match):
+        if match["status"] == "bye":
             return "автопроход"
-        if m["score1"] is None or m["score2"] is None:
+        if match["score1"] is None or match["score2"] is None:
             return "—"
-        return f"{m['score1']} : {m['score2']}"
+        score = f"{match['score1']} : {match['score2']}"
+        details = self.match_sets_text(match["id"])
+        return f"{score}  ({details})" if details else score
 
     def set_match_schedule(self, match_id, date_text, time_text, venue):
         m = self.get_match(match_id)
@@ -733,9 +767,101 @@ class Database:
             self.conn.execute(
                 "UPDATE matches SET score1=?, score2=?, winner_id=?, status='played' WHERE id=?",
                 (s1, s2, winner, match_id))
+            self.conn.execute("DELETE FROM match_sets WHERE match_id=?", (match_id,))
             if olympic:
                 self._put_in_next(m, winner)
         self._after_results_changed(m["tournament_id"])
+
+    def record_volleyball_result(self, match_id, set_scores):
+        """Сохраняет партии волейбольного матча по правилам игры до трёх побед."""
+        match = self.get_match(match_id)
+        if match is None:
+            raise ValidationError("Матч не найден.")
+        if match["status"] == "bye":
+            raise ValidationError("Для автопрохода результат не вводится.")
+        if not match["team1_id"] or not match["team2_id"]:
+            raise ValidationError(
+                "Соперники ещё не определены — сначала сыграйте предыдущие матчи."
+            )
+        if not self.is_volleyball_tournament(match["tournament_id"]):
+            raise ValidationError("Подробный ввод партий доступен для турниров по волейболу.")
+        try:
+            submitted = list(set_scores)
+        except TypeError:
+            raise ValidationError("Укажите результаты сыгранных партий.")
+
+        if not 3 <= len(submitted) <= 5:
+            raise ValidationError("В матче должно быть от 3 до 5 сыгранных партий.")
+
+        wins1 = wins2 = 0
+        validated = []
+        for set_number, pair in enumerate(submitted, start=1):
+            if wins1 == 3 or wins2 == 3:
+                raise ValidationError(
+                    "Матч заканчивается сразу после третьей выигранной партии."
+                )
+            if not isinstance(pair, (list, tuple)) or len(pair) != 2:
+                raise ValidationError(f"Укажите оба счёта для {set_number}-й партии.")
+            points1 = parse_int(pair[0], f"{set_number}-я партия, команда 1", 0, 999)
+            points2 = parse_int(pair[1], f"{set_number}-я партия, команда 2", 0, 999)
+            if points1 == points2:
+                raise ValidationError(f"В {set_number}-й партии не может быть ничьей.")
+
+            target = 15 if set_number == 5 else 25
+            winner_points = max(points1, points2)
+            loser_points = min(points1, points2)
+            if winner_points < target:
+                raise ValidationError(
+                    f"{set_number}-я партия должна быть сыграна минимум до {target} очков."
+                )
+            if winner_points == target:
+                if loser_points > target - 2:
+                    raise ValidationError(
+                        f"В {set_number}-й партии нужна разница минимум в 2 очка."
+                    )
+            elif loser_points != winner_points - 2:
+                raise ValidationError(
+                    f"После {target}:{target - 1} партия продолжается до преимущества "
+                    "в 2 очка (например, 26:24)."
+                )
+
+            if points1 > points2:
+                wins1 += 1
+            else:
+                wins2 += 1
+            validated.append((set_number, points1, points2))
+
+            if set_number == 5 and (wins1, wins2) not in ((3, 2), (2, 3)):
+                raise ValidationError(
+                    "Пятая партия проводится только при счёте 2:2 после четырёх партий."
+                )
+
+        if max(wins1, wins2) != 3:
+            raise ValidationError(
+                "Результат неполный: одна из команд должна выиграть 3 партии."
+            )
+
+        tournament = self.get_tournament(match["tournament_id"])
+        olympic = tournament["system"] == "olympic"
+        if olympic:
+            self._ensure_next_not_played(match)
+        winner = match["team1_id"] if wins1 > wins2 else match["team2_id"]
+
+        with self.conn:
+            self.conn.execute(
+                "UPDATE matches SET score1=?, score2=?, winner_id=?, status='played' WHERE id=?",
+                (wins1, wins2, winner, match_id)
+            )
+            self.conn.execute("DELETE FROM match_sets WHERE match_id=?", (match_id,))
+            self.conn.executemany(
+                "INSERT INTO match_sets(match_id, set_number, team1_points, team2_points) "
+                "VALUES(?,?,?,?)",
+                [(match_id, number, points1, points2)
+                 for number, points1, points2 in validated]
+            )
+            if olympic:
+                self._put_in_next(match, winner)
+        self._after_results_changed(match["tournament_id"])
 
     def clear_result(self, match_id):
         m = self.get_match(match_id)
@@ -751,6 +877,7 @@ class Database:
             self.conn.execute(
                 "UPDATE matches SET score1=NULL, score2=NULL, winner_id=NULL, "
                 "status='scheduled' WHERE id=?", (match_id,))
+            self.conn.execute("DELETE FROM match_sets WHERE match_id=?", (match_id,))
             if olympic:
                 self._put_in_next(m, None)
         self._after_results_changed(m["tournament_id"])
@@ -824,18 +951,41 @@ class Database:
         else:
             stat["losses"] += 1
 
+    @staticmethod
+    def _apply_volleyball(stat, sets_won, sets_lost):
+        """Начисление очков в круговом волейбольном турнире."""
+        stat["played"] += 1
+        stat["gf"] += sets_won
+        stat["ga"] += sets_lost
+        stat["diff"] = stat["gf"] - stat["ga"]
+        if sets_won > sets_lost:
+            stat["wins"] += 1
+            stat["points"] += 2 if sets_lost == 2 else 3
+        else:
+            stat["losses"] += 1
+            if sets_won == 2 and sets_lost == 3:
+                stat["points"] += 1
+
     def team_stats(self, team_id, tid=None):
         stat = self._blank_stat()
-        sql = "SELECT * FROM matches WHERE status='played' AND (team1_id=? OR team2_id=?)"
+        sql = (
+            "SELECT m.*, t.sport FROM matches m "
+            "JOIN tournaments t ON t.id=m.tournament_id "
+            "WHERE m.status='played' AND (m.team1_id=? OR m.team2_id=?)"
+        )
         args = [team_id, team_id]
         if tid is not None:
-            sql += " AND tournament_id=?"
+            sql += " AND m.tournament_id=?"
             args.append(tid)
-        for m in self.conn.execute(sql, args).fetchall():
-            if m["team1_id"] == team_id:
-                self._apply(stat, m["score1"], m["score2"])
+        for match in self.conn.execute(sql, args).fetchall():
+            if match["team1_id"] == team_id:
+                gf, ga = match["score1"], match["score2"]
             else:
-                self._apply(stat, m["score2"], m["score1"])
+                gf, ga = match["score2"], match["score1"]
+            if "волейбол" in (match["sport"] or "").casefold():
+                self._apply_volleyball(stat, gf, ga)
+            else:
+                self._apply(stat, gf, ga)
         return stat
 
     def standings(self, tid):
@@ -845,13 +995,20 @@ class Database:
             row = self._blank_stat()
             row.update(team_id=team["id"], name=team["name"], rating=team["rating"])
             table[team["id"]] = row
-        for m in self.conn.execute(
-                "SELECT * FROM matches WHERE tournament_id=? AND status='played'",
+        for match in self.conn.execute(
+                "SELECT m.*, t.sport FROM matches m "
+                "JOIN tournaments t ON t.id=m.tournament_id "
+                "WHERE m.tournament_id=? AND m.status='played'",
                 (tid,)).fetchall():
-            if m["team1_id"] in table:
-                self._apply(table[m["team1_id"]], m["score1"], m["score2"])
-            if m["team2_id"] in table:
-                self._apply(table[m["team2_id"]], m["score2"], m["score1"])
+            apply_result = (
+                self._apply_volleyball
+                if "волейбол" in (match["sport"] or "").casefold()
+                else self._apply
+            )
+            if match["team1_id"] in table:
+                apply_result(table[match["team1_id"]], match["score1"], match["score2"])
+            if match["team2_id"] in table:
+                apply_result(table[match["team2_id"]], match["score2"], match["score1"])
         rows = list(table.values())
         if t is not None and t["system"] == "olympic":
             rows.sort(key=lambda r: (-r["wins"], -r["diff"], -r["gf"], r["name"]))
@@ -886,6 +1043,14 @@ class Database:
                 gf, ga = (m["score1"], m["score2"]) if home else (m["score2"], m["score1"])
                 outcome = "Победа" if gf > ga else ("Ничья" if gf == ga else "Поражение")
                 score = f"{gf} : {ga}"
+                set_rows = self.get_match_sets(m["id"])
+                if set_rows:
+                    parts = [
+                        f"{row['team1_points']}:{row['team2_points']}"
+                        if home else f"{row['team2_points']}:{row['team1_points']}"
+                        for row in set_rows
+                    ]
+                    score += "  (" + " · ".join(parts) + ")"
             else:
                 outcome, score = "Впереди", "—"
             result.append({"tournament": m["tournament_name"], "round": m["round_name"],
@@ -896,8 +1061,80 @@ class Database:
 
     # --------------------------------------------------------------- экспорт
 
-    def export_rows(self, kind, tid=None):
-        """Возвращает (заголовок листа, список заголовков, список строк) для экспорта."""
+    def export_rows(self, kind, tid=None, match_date=None, match_id=None):
+        """Возвращает заголовок, колонки и строки для XLSX/CSV."""
+        if kind == "match_report":
+            if match_id is None:
+                raise ValidationError("Выберите матч для формирования протокола.")
+            match = self.get_match(match_id)
+            if match is None:
+                raise ValidationError("Матч не найден.")
+            if match["status"] != "played":
+                raise ValidationError("Протокол можно выгрузить после ввода результата.")
+            tournament = self.get_tournament(match["tournament_id"])
+            headers = [
+                "Турнир", "Тур / стадия", "Дата", "Время", "Площадка",
+                "Команда 1", "Команда 2", "Партия", "Счёт партии",
+                "Итог по партиям", "Победитель"
+            ]
+            sets = self.get_match_sets(match_id)
+            winner = match["winner_name"] or "—"
+            common = [
+                tournament["name"], match["round_name"], fmt_date(match["match_date"]),
+                match["match_time"] or "", match["venue"],
+                match["team1_name"] or "—", match["team2_name"] or "—"
+            ]
+            if sets:
+                rows = [
+                    common + [
+                        f"{row['set_number']}-я",
+                        f"{row['team1_points']} : {row['team2_points']}",
+                        f"{match['score1']} : {match['score2']}", winner
+                    ]
+                    for row in sets
+                ]
+            else:
+                rows = [common + ["—", "—", self.score_text(match), winner]]
+            return "Протокол_матча", headers, rows
+
+        if kind == "matches_by_date":
+            if not (match_date or "").strip():
+                raise ValidationError("Укажите дату матчей в формате ДД.ММ.ГГГГ.")
+            date_iso = parse_date(match_date)
+            sql = (
+                "SELECT m.*, a.name AS team1_name, b.name AS team2_name, "
+                "w.name AS winner_name, t.name AS tournament_name "
+                "FROM matches m JOIN tournaments t ON t.id=m.tournament_id "
+                "LEFT JOIN teams a ON a.id=m.team1_id "
+                "LEFT JOIN teams b ON b.id=m.team2_id "
+                "LEFT JOIN teams w ON w.id=m.winner_id "
+                "WHERE m.match_date=? AND m.status='played'"
+            )
+            args = [date_iso]
+            if tid is not None:
+                sql += " AND m.tournament_id=?"
+                args.append(tid)
+            sql += " ORDER BY t.name, m.round, m.position"
+            matches = self.conn.execute(sql, args).fetchall()
+            if not matches:
+                raise ValidationError("За выбранную дату нет сыгранных матчей.")
+            headers = [
+                "Турнир", "Тур / стадия", "№", "Дата", "Время", "Площадка",
+                "Команда 1", "Команда 2", "Счёт по партиям", "Очки по партиям",
+                "Победитель"
+            ]
+            rows = [
+                [
+                    match["tournament_name"], match["round_name"], match["position"],
+                    fmt_date(match["match_date"]), match["match_time"] or "",
+                    match["venue"], match["team1_name"] or "—", match["team2_name"] or "—",
+                    f"{match['score1']} : {match['score2']}",
+                    self.match_sets_text(match["id"]) or "—", match["winner_name"] or "—"
+                ]
+                for match in matches
+            ]
+            return f"Матчи_{date_iso}", headers, rows
+
         if kind == "standings":
             self._need_tournament(tid)
             headers = ["Место", "Команда", "Игры", "Победы", "Ничьи", "Поражения",
