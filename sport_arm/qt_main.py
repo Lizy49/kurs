@@ -1539,7 +1539,7 @@ class BracketTab(BaseTab):
         rounds = {}
         for match in matches:
             rounds.setdefault(match["round"], []).append(match)
-        box_w, box_h, gap_x, gap_y = 220, 66, 65, 34
+        box_w, box_h, gap_x, gap_y = 240, 92, 65, 34
         centers = {}
         mine = self.app.team_id()
         for rnd in sorted(rounds):
@@ -1760,10 +1760,17 @@ class BracketTab(BaseTab):
             points_text.setPos(points_x + 15, y + 26)
 
         footer_y = header_y + header_height + len(teams) * row_height + 10
-        legend = self.scene.addText(
-            "В ячейке: итог по партиям и счёт отдельных партий. "
-            "Волейбол: 3 очка за 3:0 / 3:1, 2 — за 3:2, 1 — за 2:3."
-        )
+        if self.db.is_volleyball_tournament(tid):
+            legend_text = (
+                "В ячейке: итог по партиям и счёт каждой партии. "
+                "3 очка за 3:0 / 3:1, 2 — за 3:2, 1 — за 2:3."
+            )
+        else:
+            legend_text = (
+                "В ячейке: результат встречи. Таблица отсортирована "
+                "по очкам, разнице результатов и дополнительным показателям."
+            )
+        legend = self.scene.addText(legend_text)
         legend.setFont(QFont("Segoe UI", 8))
         legend.setDefaultTextColor(QColor("#64748b"))
         legend.setPos(left, footer_y)
