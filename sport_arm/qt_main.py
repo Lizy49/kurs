@@ -378,6 +378,112 @@ def show_form(parent, title, fields, submit, initial=None, hint=None):
     return dialog.exec() == QDialog.DialogCode.Accepted
 
 
+class VolleyballResultDialog(QDialog):
+    """Диалог ввода счёта каждой партии волейбольного матча."""
+
+    def __init__(self, parent, team1, team2, submit, initial_sets=None):
+        super().__init__(parent)
+        self.setWindowTitle("Протокол волейбольного матча")
+        self.setModal(True)
+        self.setMinimumWidth(520)
+        self.submit_result = submit
+        self.inputs = []
+        initial_sets = initial_sets or []
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(22, 20, 22, 18)
+        root.setSpacing(12)
+
+        title = QLabel(f"{team1}  —  {team2}")
+        title.setStyleSheet("font-size: 13pt; font-weight: 700; color: #1c2d44;")
+        title.setWordWrap(True)
+        root.addWidget(title)
+
+        hint = QLabel(
+            "Первые четыре партии играются до 25 очков, пятая — до 15. "
+            "В каждой партии нужна разница минимум в 2 очка. "
+            "Матч выигрывает команда, первой взявшая три партии."
+        )
+        hint.setObjectName("Muted")
+        hint.setWordWrap(True)
+        root.addWidget(hint)
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(14)
+        grid.setVerticalSpacing(8)
+        headers = [
+            QLabel("Партия"),
+            QLabel(team1),
+            QLabel(team2)
+        ]
+        for column, label in enumerate(headers):
+            label.setStyleSheet("font-weight: 700; color: #52647b;")
+            label.setWordWrap(True)
+            grid.addWidget(label, 0, column)
+
+        for index in range(5):
+            number = index + 1
+            set_label = QLabel(
+                f"{number}-я" if number < 5 else "5-я (тай-брейк)"
+            )
+            set_label.setStyleSheet("font-weight: 600; color: #30425a;")
+            left = QLineEdit()
+            right = QLineEdit()
+            left.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            right.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            left.setPlaceholderText("25" if number < 5 else "15")
+            right.setPlaceholderText("25" if number < 5 else "15")
+            left.setMaximumWidth(115)
+            right.setMaximumWidth(115)
+            if index < len(initial_sets):
+                left.setText(str(initial_sets[index][0]))
+                right.setText(str(initial_sets[index][1]))
+            grid.addWidget(set_label, index + 1, 0)
+            grid.addWidget(left, index + 1, 1)
+            grid.addWidget(right, index + 1, 2)
+            self.inputs.append((left, right))
+        root.addLayout(grid)
+
+        self.error = QLabel("")
+        self.error.setObjectName("FormError")
+        self.error.setWordWrap(True)
+        root.addWidget(self.error)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Cancel |
+            QDialogButtonBox.StandardButton.Save
+        )
+        buttons.button(QDialogButtonBox.StandardButton.Save).setText("Сохранить результат")
+        buttons.button(QDialogButtonBox.StandardButton.Save).setObjectName("Primary")
+        buttons.rejected.connect(self.reject)
+        buttons.accepted.connect(self._submit)
+        root.addWidget(buttons)
+
+    def _submit(self):
+        scores = []
+        found_empty = False
+        for index, (left, right) in enumerate(self.inputs, start=1):
+            value1, value2 = left.text().strip(), right.text().strip()
+            if not value1 and not value2:
+                found_empty = True
+                continue
+            if not value1 or not value2:
+                self.error.setText(f"Заполните оба счёта для {index}-й партии.")
+                return
+            if found_empty:
+                self.error.setText(
+                    "Заполняйте партии подряд. Нельзя пропускать партию между сыгранными."
+                )
+                return
+            scores.append((value1, value2))
+        try:
+            self.submit_result(scores)
+        except (ValidationError, sqlite3.Error, OSError, ValueError) as exc:
+            self.error.setText(str(exc))
+            return
+        self.accept()
+
+
 class TournamentSelector(QWidget):
     def __init__(self, db, changed=None, parent=None, label="Турнир:"):
         super().__init__(parent)
@@ -1180,15 +1286,16 @@ class MatchesTab(BaseTab):
                 make_button("Ввести результат", self.result, "primary"),
                 make_button("Очистить результат", self.clear, "danger"),
                 make_button("Назначить время и место", self.schedule),
-                make_button("Авто-расписание", self.auto)
+                make_button("Авто-расписание", self.auto),
+                make_button("Экспорт протокола", self.export_match)
             )
             top = None
         if top is not None:
             self.layout.addLayout(top)
         self.table = DataTable(
-            ["Тур / стадия", "№", "Команда 1", "Команда 2", "Счёт",
+            ["Тур / стадия", "№", "Команда 1", "Команда 2", "Счёт / партии",
              "Дата", "Время", "Площадка", "Статус"],
-            widths=[135, 45, 185, 185, 80, 95, 65, 130, 120]
+            widths=[135, 45, 170, 170, 220, 95, 65, 130, 120]
         )
         if not readonly:
             self.table.cellDoubleClicked.connect(lambda *_: self.result())
@@ -1248,6 +1355,23 @@ class MatchesTab(BaseTab):
         if not match["team1_id"] or not match["team2_id"]:
             info(self, "Матч", "Соперники ещё не определены.")
             return
+        if self.db.is_volleyball_tournament(match["tournament_id"]):
+            initial_sets = [
+                (row["team1_points"], row["team2_points"])
+                for row in self.db.get_match_sets(match["id"])
+            ]
+            dialog = VolleyballResultDialog(
+                self,
+                match["team1_name"],
+                match["team2_name"],
+                lambda scores: self.db.record_volleyball_result(match["id"], scores),
+                initial_sets
+            )
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                self.app.notify("Результат матча сохранён, рейтинг пересчитан")
+                self.app.refresh_all()
+            return
+
         initial = {}
         if match["status"] == "played":
             initial = {"s1": match["score1"], "s2": match["score2"]}
@@ -1302,6 +1426,43 @@ class MatchesTab(BaseTab):
             self.app.notify("Расписание матча обновлено")
             self.app.refresh_all()
 
+    def export_match(self):
+        if self.readonly:
+            return
+        match = self.selected_match()
+        if match is None:
+            return
+        if match["status"] != "played":
+            info(self, "Экспорт протокола", "Сначала внесите результат матча.")
+            return
+        try:
+            title, headers, rows = self.db.export_rows(
+                "match_report", match_id=match["id"]
+            )
+        except ValidationError as exc:
+            warn(self, "Экспорт протокола", str(exc))
+            return
+        default_name = f"Протокол_матча_{match['id']}_{datetime.date.today().isoformat()}.xlsx"
+        path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить протокол матча",
+            default_name,
+            "Excel (*.xlsx);;CSV (*.csv)"
+        )
+        if not path:
+            return
+        extension = ".csv" if selected_filter.startswith("CSV") else ".xlsx"
+        if not path.lower().endswith(extension):
+            path = os.path.splitext(path)[0] + extension
+        try:
+            dbm.export_to_file(path, title, headers, rows)
+        except (ValidationError, OSError) as exc:
+            warn(self, "Экспорт протокола", str(exc))
+            return
+        self.app.notify(f"Протокол сохранён: {path}")
+        info(self, "Экспорт протокола", f"Файл сохранён:
+{path}")
+
     def auto(self):
         if self.readonly:
             return
@@ -1339,6 +1500,13 @@ class BracketTab(BaseTab):
         self.view = QGraphicsView(self.scene)
         self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.view.setMinimumHeight(430)
+        self.view.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
+        )
+        self.view.setBackgroundBrush(QColor("#f4f6f9"))
+        self.view.setStyleSheet(
+            "border: 1px solid #e3e8ef; border-radius: 9px; background: #f4f6f9;"
+        )
         self.layout.addWidget(self.view)
 
     def refresh(self):
@@ -1412,80 +1580,195 @@ class BracketTab(BaseTab):
 
     def draw_match_box(self, x, y, width, height, match, mine):
         own = mine is not None and mine in (match["team1_id"], match["team2_id"])
-        border = QColor("#f59e0b") if own else QColor("#94a3b8")
-        self.scene.addRect(x, y, width, height, QPen(border), QBrush(QColor("#ffffff")))
-        self.scene.addLine(x, y + height / 2, x + width, y + height / 2,
-                           QPen(QColor("#e2e8f0")))
+        border = QColor("#e6a23c") if own else QColor("#cbd5e1")
+        self.scene.addRect(
+            x, y, width, height, QPen(border, 1.4),
+            QBrush(QColor("#fffaf0" if own else "#ffffff"))
+        )
+        self.scene.addLine(
+            x, y + 30, x + width, y + 30, QPen(QColor("#e8edf3"))
+        )
+        self.scene.addLine(
+            x, y + 60, x + width, y + 60, QPen(QColor("#e8edf3"))
+        )
         for index, (name, score, team_id) in enumerate((
             (match["team1_name"], match["score1"], match["team1_id"]),
             (match["team2_name"], match["score2"], match["team2_id"])
         )):
-            text = name or "—"
-            if len(text) > 23:
-                text = text[:22] + "…"
-            if match["winner_id"] is not None and match["winner_id"] == team_id:
+            text = name or "Ожидается соперник"
+            if len(text) > 24:
+                text = text[:23] + "…"
+            is_winner = match["winner_id"] is not None and match["winner_id"] == team_id
+            if is_winner:
                 text = "★ " + text
             label = self.scene.addText(text)
-            label.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold if
-                                team_id is not None and match["winner_id"] == team_id else QFont.Weight.Normal))
-            label.setDefaultTextColor(QColor("#172033" if name else "#94a3b8"))
-            label.setPos(x + 8, y + index * height / 2 + 5)
+            label.setFont(QFont(
+                "Segoe UI", 9,
+                QFont.Weight.Bold if is_winner else QFont.Weight.Normal
+            ))
+            label.setDefaultTextColor(
+                QColor("#172033" if name else "#94a3b8")
+            )
+            label.setPos(x + 9, y + index * 30 + 5)
             if score is not None:
                 score_item = self.scene.addText(str(score))
                 score_item.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-                score_item.setPos(x + width - 27, y + index * height / 2 + 5)
-        when = " ".join(part for part in (
+                score_item.setDefaultTextColor(QColor("#1d4ed8"))
+                score_item.setPos(x + width - 28, y + index * 30 + 4)
+
+        details = self.db.match_sets_text(match["id"])
+        if details:
+            details_item = self.scene.addText(details)
+            details_item.setFont(QFont("Segoe UI", 7))
+            details_item.setDefaultTextColor(QColor("#52647b"))
+            details_item.setTextWidth(width - 16)
+            details_item.setPos(x + 8, y + 63)
+        when = "  ·  ".join(part for part in (
             fmt_date(match["match_date"]), match["match_time"] or "", match["venue"]
         ) if part)
         if when:
             small = self.scene.addText(when)
             small.setFont(QFont("Segoe UI", 7))
             small.setDefaultTextColor(QColor("#64748b"))
-            small.setPos(x, y + height + 2)
+            small.setPos(x, y + height + 3)
 
     def draw_matrix(self, tid, matches):
         table_rows = self.db.standings(tid)
-        teams = [r["team_id"] for r in table_rows]
-        names = {r["team_id"]: r["name"] for r in table_rows}
+        teams = [row["team_id"] for row in table_rows]
+        names = {row["team_id"]: row["name"] for row in table_rows}
         results = {}
         for match in matches:
-            if match["status"] == "played":
-                results[(match["team1_id"], match["team2_id"])] = (
-                    match["score1"], match["score2"]
-                )
-                results[(match["team2_id"], match["team1_id"])] = (
-                    match["score2"], match["score1"]
-                )
-        cell_w, cell_h = 82, 38
-        left = 12
-        header = self.scene.addText("Команда / соперник")
-        header.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        header.setPos(left, 10)
-        for col, team_id in enumerate(teams):
-            item = self.scene.addText(str(col + 1))
-            item.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-            item.setPos(left + 230 + col * cell_w, 10)
-        for row, team_id in enumerate(teams):
-            y = 42 + row * cell_h
-            item = self.scene.addText(f"{row + 1}. {names[team_id]}")
-            item.setPos(left, y)
-            for col, opponent in enumerate(teams):
-                if team_id == opponent:
-                    value = "■"
-                elif (team_id, opponent) in results:
-                    score = results[(team_id, opponent)]
-                    value = f"{score[0]}:{score[1]}"
+            if match["status"] != "played":
+                continue
+            sets = self.db.get_match_sets(match["id"])
+            details = self.db.match_sets_text(match["id"])
+            reverse_details = self.db.match_sets_text(match["id"], reverse=True)
+            results[(match["team1_id"], match["team2_id"])] = {
+                "score": f"{match['score1']}:{match['score2']}",
+                "sets": details,
+                "date": fmt_date(match["match_date"])
+            }
+            results[(match["team2_id"], match["team1_id"])] = {
+                "score": f"{match['score2']}:{match['score1']}",
+                "sets": reverse_details,
+                "date": fmt_date(match["match_date"])
+            }
+
+        left = 18
+        top = 18
+        name_width = 220
+        cell_width = 178
+        points_width = 104
+        header_height = 54
+        row_height = 72
+        total_width = left + name_width + len(teams) * cell_width + points_width + 18
+
+        title = self.scene.addText("РЕЗУЛЬТАТЫ ВСТРЕЧ")
+        title.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        title.setDefaultTextColor(QColor("#20334d"))
+        title.setPos(left, top)
+
+        header_y = top + 32
+        self.scene.addRect(
+            left, header_y, name_width, header_height,
+            QPen(QColor("#233a59")), QBrush(QColor("#233a59"))
+        )
+        header_label = self.scene.addText("КОМАНДА")
+        header_label.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        header_label.setDefaultTextColor(QColor("#ffffff"))
+        header_label.setPos(left + 12, header_y + 18)
+
+        for column, team_id in enumerate(teams):
+            x = left + name_width + column * cell_width
+            self.scene.addRect(
+                x, header_y, cell_width, header_height,
+                QPen(QColor("#314b6d")), QBrush(QColor("#314b6d"))
+            )
+            label = self.scene.addText(names[team_id])
+            label.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
+            label.setDefaultTextColor(QColor("#ffffff"))
+            label.setTextWidth(cell_width - 14)
+            label.setPos(x + 8, header_y + 12)
+
+        points_x = left + name_width + len(teams) * cell_width
+        self.scene.addRect(
+            points_x, header_y, points_width, header_height,
+            QPen(QColor("#233a59")), QBrush(QColor("#233a59"))
+        )
+        points_header = self.scene.addText("ОЧКИ")
+        points_header.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        points_header.setDefaultTextColor(QColor("#ffffff"))
+        points_header.setPos(points_x + 14, header_y + 18)
+
+        for row_index, row in enumerate(table_rows):
+            team_id = row["team_id"]
+            y = header_y + header_height + row_index * row_height
+            base = QColor("#ffffff" if row_index % 2 == 0 else "#f8fafc")
+            self.scene.addRect(
+                left, y, name_width, row_height,
+                QPen(QColor("#e2e8f0")), QBrush(QColor("#eef3f9"))
+            )
+            team_label = self.scene.addText(f"{row['place']}.  {names[team_id]}")
+            team_label.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+            team_label.setDefaultTextColor(QColor("#20334d"))
+            team_label.setTextWidth(name_width - 18)
+            team_label.setPos(left + 9, y + 24)
+
+            for column, opponent_id in enumerate(teams):
+                x = left + name_width + column * cell_width
+                if team_id == opponent_id:
+                    fill = QColor("#e9eef5")
+                    value = "—"
+                    color = QColor("#7b8797")
+                    weight = QFont.Weight.Normal
+                elif (team_id, opponent_id) in results:
+                    result = results[(team_id, opponent_id)]
+                    fill = QColor("#eaf6ee")
+                    value = result["score"]
+                    if result["sets"]:
+                        value += "\n" + result["sets"]
+                    color = QColor("#166534")
+                    weight = QFont.Weight.Bold
                 else:
-                    value = "·"
-                cell = self.scene.addText(value)
-                cell.setTextWidth(cell_w - 8)
-                cell.setDefaultTextColor(QColor("#2563eb"))
-                cell.setPos(left + 230 + col * cell_w, y)
-            points = table_rows[row]["points"]
-            pts = self.scene.addText(f"{points} очк.")
-            pts.setPos(left + 230 + len(teams) * cell_w, y)
-        rect = self.scene.itemsBoundingRect()
-        self.scene.setSceneRect(rect.adjusted(-10, -10, 35, 20))
+                    fill = base
+                    value = "Матч не сыгран"
+                    color = QColor("#8a96a7")
+                    weight = QFont.Weight.Normal
+                self.scene.addRect(
+                    x, y, cell_width, row_height,
+                    QPen(QColor("#e2e8f0")), QBrush(fill)
+                )
+                cell_text = self.scene.addText(value)
+                cell_text.setFont(QFont(
+                    "Segoe UI", 8, weight
+                ))
+                cell_text.setDefaultTextColor(color)
+                cell_text.setTextWidth(cell_width - 14)
+                cell_text.setPos(x + 8, y + 11)
+                if (team_id, opponent_id) in results and team_id != opponent_id:
+                    date_text = results[(team_id, opponent_id)]["date"]
+                    if date_text:
+                        cell_text.setToolTip(f"Сыгран: {date_text}")
+
+            self.scene.addRect(
+                points_x, y, points_width, row_height,
+                QPen(QColor("#e2e8f0")), QBrush(QColor("#f1f5f9"))
+            )
+            points_text = self.scene.addText(f"{row['points']} очк.")
+            points_text.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+            points_text.setDefaultTextColor(QColor("#1d4ed8"))
+            points_text.setPos(points_x + 15, y + 26)
+
+        footer_y = header_y + header_height + len(teams) * row_height + 10
+        legend = self.scene.addText(
+            "В ячейке: итог по партиям и счёт отдельных партий. "
+            "Волейбол: 3 очка за 3:0 / 3:1, 2 — за 3:2, 1 — за 2:3."
+        )
+        legend.setFont(QFont("Segoe UI", 8))
+        legend.setDefaultTextColor(QColor("#64748b"))
+        legend.setPos(left, footer_y)
+        total_height = footer_y + 32
+        self.scene.setSceneRect(0, 0, total_width, total_height)
 
 
 class StatsTab(BaseTab):
@@ -1559,6 +1842,7 @@ class ExportTab(BaseTab):
     KINDS = [
         ("standings", "Турнирная таблица"),
         ("schedule", "Расписание и результаты матчей"),
+        ("matches_by_date", "Сыгранные матчи за дату"),
         ("applications", "Заявки команд"),
         ("roster", "Составы команд"),
         ("ratings", "Рейтинг команд")
@@ -1577,15 +1861,28 @@ class ExportTab(BaseTab):
         for key, label in self.KINDS:
             self.kind.addItem(label, key)
         self.all_rosters = QCheckBox("Выгрузить составы всех команд, а не только участников турнира")
+        self.match_date_label = QLabel("Дата сыгранных матчей (ДД.ММ.ГГГГ)")
+        self.match_date = QLineEdit(datetime.date.today().strftime("%d.%m.%Y"))
+        self.match_date.setPlaceholderText("Например, 18.11.2026")
         self.format = QComboBox()
         self.format.addItem("Excel (.xlsx)", "xlsx")
         self.format.addItem("CSV (.csv)", "csv")
         form.addRow("Что выгрузить", self.kind)
         form.addRow("", self.all_rosters)
+        form.addRow(self.match_date_label, self.match_date)
         form.addRow("Формат файла", self.format)
+        self.kind.currentIndexChanged.connect(self._sync_export_fields)
+        self._sync_export_fields()
         self.layout.addWidget(panel)
         self.layout.addWidget(make_button("Экспортировать…", self.export, "primary"))
         self.layout.addStretch(1)
+
+    def _sync_export_fields(self):
+        is_roster = self.kind.currentData() == "roster"
+        is_date = self.kind.currentData() == "matches_by_date"
+        self.all_rosters.setVisible(is_roster)
+        self.match_date_label.setVisible(is_date)
+        self.match_date.setVisible(is_date)
 
     def refresh(self):
         self.selector.reload()
@@ -1599,7 +1896,12 @@ class ExportTab(BaseTab):
             info(self, "Экспорт", "Выберите турнир или отметьте выгрузку всех команд.")
             return
         try:
-            title, headers, rows = self.db.export_rows(kind, tid)
+            title, headers, rows = self.db.export_rows(
+                kind,
+                tid,
+                match_date=self.match_date.text().strip()
+                if kind == "matches_by_date" else None
+            )
         except ValidationError as exc:
             warn(self, "Экспорт", str(exc))
             return
